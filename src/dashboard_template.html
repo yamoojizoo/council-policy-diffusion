@@ -44,7 +44,7 @@ main{max-width:1240px;margin:0 auto;padding:0 24px 96px}
 .view{display:none}.view.on{display:block}
 
 /* overview */
-.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,520px);gap:56px;align-items:center;padding:72px 0 56px}
+.hero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,480px);gap:56px;align-items:center;padding:72px 0 56px}
 .hero h1{font-size:52px;line-height:1.08;letter-spacing:-0.035em;font-weight:700;margin:0 0 20px}
 .hero p.lede{font-size:19px;line-height:1.6;color:var(--ink-2);margin:0 0 28px;max-width:34em}
 .btns{display:flex;gap:12px;flex-wrap:wrap}
@@ -109,6 +109,25 @@ section.block{padding:64px 0 0}
 .sw{width:12px;height:12px;border-radius:4px;display:inline-block}
 .ln{width:14px;height:3px;border-radius:2px;display:inline-block}
 .upnote{background:var(--fill);border-radius:12px;padding:10px 14px;font-size:13.5px;color:var(--ink-2);margin:-8px 0 20px}
+
+/* map & player */
+svg.geo{display:block;margin:0 auto;max-height:min(62vh,640px)}
+.stage svg.geo{max-height:min(54vh,560px)}
+svg.geo .rg{transition:fill .5s ease, stroke .3s}
+svg.geo .rg:hover{filter:brightness(1.06)}
+svg.geo .lb,svg.geo .lb2{transition:fill .5s}
+.ripple{transform-box:fill-box;transform-origin:center;animation:ripple 1.5s ease-out forwards}
+.ripple.fillr{animation:ripplefill 1.5s ease-out forwards}
+@keyframes ripple{from{transform:scale(.3);opacity:.9}to{transform:scale(3.4);opacity:0}}
+@keyframes ripplefill{from{transform:scale(.4);opacity:.35}to{transform:scale(2.2);opacity:0}}
+.ph{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:6px;flex-wrap:wrap}
+.pdate{font-size:26px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums;white-space:nowrap}
+.pcount{font-size:13px;color:var(--ink-2)}
+.pctl{display:flex;align-items:center;gap:14px;margin-top:8px}
+.pbtn{flex:none;width:40px;height:40px;border-radius:999px;border:0;background:var(--accent);color:var(--accent-ink);cursor:pointer;display:grid;place-items:center}
+.prw{flex:1}
+.prange{width:100%;accent-color:var(--accent)}
+.pticks{display:flex;justify-content:space-between;font-size:12px;color:var(--ink-3)}
 
 /* timeline */
 .tl{position:relative;margin-top:8px}
@@ -252,37 +271,79 @@ const STEPS=["--q700","--q550","--q400","--q250","--q100"];
 function seq(rank,n){const k=n<=1?0:Math.round(rank/(n-1)*(STEPS.length-1));return {fill:`var(${STEPS[k]})`,k};}
 function inkOn(k){return isDark()? (k<=1?"#0b0b0b":"#ffffff") : (k<=2?"#ffffff":"#0b0b0b");}
 
-// 타일 지도: state(a) -> {fill, ink, line1, line2, dashed, tip[]}
-function tileMap(stateFn, opts={}){
-  const cw=opts.cw||96,ch=opts.ch||70,g=8,cols=4,rows=5;
-  const svg=sv("svg",{viewBox:`0 0 ${cols*(cw+g)} ${rows*(ch+g)}`,width:"100%",role:"img","aria-label":opts.label||"광역의회 지도"});
-  const pos={};
-  for(const a in D.tiles){const [c,r]=D.tiles[a];const x=c*(cw+g),y=r*(ch+g);pos[a]=[x+cw/2,y+ch/2];
-    const st=stateFn(a);const gEl=sv("g",{"data-a":a,style:opts.onClick?"cursor:pointer":""});
-    const rect=sv("rect",{x:x+1,y:y+1,width:cw-2,height:ch-2,rx:14,fill:st.fill,stroke:st.stroke||"none","stroke-width":st.stroke?2:0,"stroke-dasharray":st.dashed?"5 4":""});
-    rect.style.transition="fill .45s ease";
-    gEl.appendChild(rect);
-    gEl.appendChild(sv("text",{x:x+cw/2,y:y+ch/2-3,"text-anchor":"middle",style:`font-size:15px;font-weight:600;fill:${st.ink};transition:fill .45s`},short(a)));
-    gEl.appendChild(sv("text",{x:x+cw/2,y:y+ch/2+15,"text-anchor":"middle",style:`font-size:11.5px;fill:${st.ink2||st.ink};opacity:.9;transition:fill .45s`},st.line2||""));
-    if(st.tip)hover(gEl,()=>st.tip);
-    if(opts.onClick){gEl.addEventListener("click",()=>opts.onClick(a));gEl.addEventListener("keydown",e=>{if(e.key==="Enter")opts.onClick(a);});}
-    svg.appendChild(gEl);}
-  svg._pos=pos;return svg;}
-function arrows(svg, pairs){
-  const defs=sv("defs"),mk=sv("marker",{id:"ah"+Math.random().toString(36).slice(2,7),viewBox:"0 0 10 10",refX:"8",refY:"5",markerWidth:"7",markerHeight:"7",orient:"auto-start-reverse"});
+// ---- 실제 지도 (통계청 행정구역 경계 기반 SVG) ----
+const METRO=new Set(["서울","인천","대전","세종","광주","대구","울산","부산"]);
+let uid=0;
+function geoMap(opts={}){
+  const G=D.geo,svg=sv("svg",{viewBox:`0 0 ${G.w} ${G.h}`,width:"100%",role:"img","aria-label":opts.label||"광역의회 지도",class:"geo"});
+  const id="m"+(uid++);const defs=sv("defs");
+  const mk=sv("marker",{id:id+"ah",viewBox:"0 0 10 10",refX:"7",refY:"5",markerWidth:"6",markerHeight:"6",orient:"auto-start-reverse"});
   mk.appendChild(sv("path",{d:"M0,0 L10,5 L0,10 z",fill:"var(--d-blue)"}));defs.appendChild(mk);svg.appendChild(defs);
-  pairs.forEach(([s,t])=>{if(!(s in svg._pos)||!(t in svg._pos))return;const [x1,y1]=svg._pos[s],[x2,y2]=svg._pos[t];const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,o=30;
-    const mx=(x1+x2)/2-dy*0.15,my=(y1+y2)/2+dx*0.15;
-    svg.appendChild(sv("path",{d:`M${x1+dx/L*o},${y1+dy/L*o} Q${mx},${my} ${x2-dx/L*o},${y2-dy/L*o}`,fill:"none",stroke:"var(--d-blue)","stroke-width":2.5,"marker-end":`url(#${mk.id})`,"stroke-linecap":"round"}));});}
+  const gR=sv("g"),gA=sv("g"),gF=sv("g"),gL=sv("g",{"pointer-events":"none"});svg.append(gR,gA,gF,gL);
+  const regions={},state={};
+  for(const a in G.regions){const r=G.regions[a];
+    const p=sv("path",{d:r.d,fill:"var(--q0)",stroke:"var(--surface)","stroke-width":1.4,"stroke-linejoin":"round",class:"rg","data-a":a});
+    if(opts.onClick){p.style.cursor="pointer";p.addEventListener("click",()=>opts.onClick(a));p.addEventListener("keydown",e=>{if(e.key==="Enter")opts.onClick(a);});}
+    hover(p,()=>(state[a]&&state[a].tip)||[full(a)]);gR.appendChild(p);
+    const [cx,cy]=r.c,small=METRO.has(a);
+    const t1=sv("text",{x:cx,y:cy+(small?4:0),"text-anchor":"middle",class:"lb",style:`font-size:${small?11:14}px;font-weight:600`},short(a));
+    const t2=sv("text",{x:cx,y:cy+15,"text-anchor":"middle",class:"lb2",style:"font-size:11px"},"");
+    gL.append(t1,t2);regions[a]={p,t1,t2,c:r.c,small};}
+  function update(fn){for(const a in regions){const st=fn(a)||{};state[a]=st;const R=regions[a];
+      R.p.setAttribute("fill",st.fill||"var(--q0)");R.p.setAttribute("stroke",st.stroke||"var(--surface)");
+      R.p.setAttribute("stroke-width",st.stroke?2.4:1.4);R.p.setAttribute("stroke-dasharray",st.dashed?"6 4":"");
+      if(st.stroke)gR.appendChild(R.p);   // 강조 윤곽선이 이웃에 가리지 않게 맨 위로
+      R.t1.style.fill=st.ink||"var(--ink-2)";R.t2.style.fill=st.ink||"var(--ink-2)";R.t2.textContent=R.small?"":(st.sub||"");}}
+  function ripple(a, color){if(reduce)return;const [x,y]=regions[a].c;
+    const c=sv("circle",{cx:x,cy:y,r:16,fill:"none",stroke:color||"var(--d-blue)","stroke-width":3,class:"ripple"});gF.appendChild(c);setTimeout(()=>c.remove(),1600);
+    const c2=sv("circle",{cx:x,cy:y,r:16,fill:color||"var(--d-blue)",class:"ripple fillr"});gF.appendChild(c2);setTimeout(()=>c2.remove(),1600);}
+  const drawn={};
+  function arrow(s,t,animate){const k=s+">"+t;if(drawn[k]||!(s in regions)||!(t in regions))return;const [x1,y1]=regions[s].c,[x2,y2]=regions[t].c;
+    const dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,o=14;const mx=(x1+x2)/2-dy*0.22,my=(y1+y2)/2+dx*0.22;
+    const p=sv("path",{d:`M${x1+dx/L*o},${y1+dy/L*o} Q${mx},${my} ${x2-dx/L*o},${y2-dy/L*o}`,fill:"none",stroke:"var(--d-blue)","stroke-width":3,"stroke-linecap":"round","marker-end":`url(#${id}ah)`});
+    gA.appendChild(p);drawn[k]=p;if(animate&&!reduce){const len=p.getTotalLength();p.style.strokeDasharray=len;p.style.strokeDashoffset=len;p.getBoundingClientRect();p.style.transition="stroke-dashoffset .9s ease";p.style.strokeDashoffset=0;
+      setTimeout(()=>{p.style.strokeDasharray="";},950);}}
+  function clearArrows(keep){for(const k in drawn){if(!keep(k)){drawn[k].remove();delete drawn[k];}}}
+  return {svg,update,ripple,arrow,clearArrows,regions};}
 
-function issueMapState(i, cutoff){ // cutoff: ISO 날짜. 이전에 관측된 의회만 색칠(애니메이션용)
+function issueState(i, cut, showPred){
   const order={};i.tl.forEach((t,k)=>order[t.a]=k);const pred={};(i.pred||[]).forEach(p=>pred[p.a]=p);const n=i.tl.length;
-  return a=>{const k=order[a];const seen=k!==undefined&&(!cutoff||i.tl[k].date<=cutoff);
-    if(seen){const t=i.tl[k],s=seq(k,n);return {fill:s.fill,ink:inkOn(s.k),line2:`${k+1}번째 · ${t.date.slice(2,4)}.${t.date.slice(5,7)}`,
-      tip:[full(a),`${k+1}번째로 관측 (${fmtD(t.date)})`,k?`최초 관측 후 ${t.lag}일 · ${REL[t.rel]}`:"최초 관측",`「${t.m}」`]};}
-    const p=pred[a],hot=p&&p.tier!=="낮음"&&!cutoff;
-    return {fill:"var(--q0)",ink:"var(--ink-2)",ink2:"var(--ink-3)",line2:k!==undefined?"":(hot?`확산 가능성 ${p.tier}`:"미관측"),stroke:hot?"var(--d-orange)":null,dashed:hot,
-      tip:[full(a),k!==undefined?"아직 관측 전":"제공 데이터 범위에서 관측되지 않음",...(p?[`확산 가능성 ${p.tier} (점수 ${p.p.toFixed(2)})`,...p.why]:[])]};};}
+  return a=>{const k=order[a];const seen=k!==undefined&&(!cut||i.tl[k].date<=cut);
+    if(seen){const t=i.tl[k],s=seq(k,n);return {fill:s.fill,ink:inkOn(s.k),sub:`${t.date.slice(2,4)}.${t.date.slice(5,7)}`,stroke:k===0?"var(--ink)":null,
+      tip:[full(a),`${k+1}번째로 관측 (${fmtD(t.date)})`,k?`최초 관측 후 ${t.lag}일, ${REL[t.rel]}`:"최초 관측 의회",`「${t.m}」`]};}
+    const p=pred[a],hot=showPred&&p&&p.tier!=="낮음";
+    return {fill:hot?"color-mix(in srgb, var(--d-orange) 16%, var(--q0))":"var(--q0)",ink:"var(--ink-3)",sub:hot?"예측":"",stroke:hot?"var(--d-orange)":null,dashed:hot,
+      tip:[full(a),k!==undefined?"이 시점에는 아직 관측 전":"제공 데이터 범위에서 관측되지 않음",...(p?[`확산 가능성 ${p.tier} (점수 ${p.p.toFixed(2)})`,...p.why]:[])]};};}
+
+// 확산 재생기: 월 단위로 관측 의회를 채우고, 새로 관측된 곳에 파동을, 명시적 참조에는 화살표를 그린다.
+// 마지막 단계에서 다음 확산 가능 의회(예측)를 점선으로 보여 준다. 참조가 없는 의회 사이에는 선을 긋지 않는다(인과 단정 금지).
+function player(i, opts={}){
+  const box=el("div",{class:"player"});
+  const head=el("div",{class:"ph"});const dl=el("div",{class:"pdate"}),cnt=el("div",{class:"pcount"});head.append(dl,cnt);box.appendChild(head);
+  const m=geoMap({label:`${i.label} 확산 지도`});box.appendChild(m.svg);
+  const months=[];{const s=new Date(i.tl[0].date),e=new Date(i.tl[i.tl.length-1].date);
+    for(let d=new Date(s.getFullYear(),s.getMonth(),1);d<=e;d=new Date(d.getFullYear(),d.getMonth()+1,1))months.push(new Date(d.getFullYear(),d.getMonth()+1,0));}
+  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
+  const hasPred=(i.pred||[]).some(p=>p.tier!=="낮음");const last=months.length-1+(hasPred?1:0);
+  const ctr=el("div",{class:"pctl"});const btn=el("button",{class:"pbtn","aria-label":"확산 재생"});const range=el("input",{type:"range",min:"0",max:String(last),value:String(last),"aria-label":"시점 선택",class:"prange"});
+  const ticks=el("div",{class:"pticks"});ticks.append(el("span",{},fmtYM(i.tl[0].date)),el("span",{},hasPred?"이후 예측":fmtYM(i.tl[i.tl.length-1].date)));
+  const rw=el("div",{class:"prw"});rw.append(range,ticks);ctr.append(btn,rw);box.appendChild(ctr);
+  const icon=play=>{btn.replaceChildren();const s=sv("svg",{viewBox:"0 0 16 16",width:"14",height:"14"});s.appendChild(play?sv("path",{d:"M4 2.5v11l9-5.5z",fill:"currentColor"}):sv("path",{d:"M4 2.5h3v11H4zM9 2.5h3v11H9z",fill:"currentColor"}));btn.appendChild(s);};
+  let j=last,timer=null,prevSeen=new Set();
+  function frame(k,animate){j=k;range.value=String(k);const isPred=hasPred&&k===last;const cut=isPred?iso(months[months.length-1]):iso(months[Math.min(k,months.length-1)]);
+    m.update(issueState(i,cut,isPred));const seen=new Set(i.tl.filter(t=>t.date<=cut).map(t=>t.a));
+    if(animate)for(const a of seen)if(!prevSeen.has(a))m.ripple(a,i.tl[0].a===a?"var(--ink)":"var(--d-blue)");
+    if(animate&&isPred)(i.pred||[]).filter(p=>p.tier!=="낮음").forEach(p=>m.ripple(p.a,"var(--d-orange)"));
+    if(i.type==="A"){m.clearArrows(key=>seen.has(key.split(">")[1]));i.tl.forEach(t=>{if(t.date<=cut)t.refs.forEach(r=>m.arrow(r.src,t.a,animate));});}
+    prevSeen=seen;dl.textContent=isPred?"다음 확산 예측":fmtYM(cut);
+    cnt.textContent=isPred?`분석 기준일 이후 180일, 주황 점선이 가능성 보통 이상`:`${seen.size}개 의회에서 관측${i.type==="B"?"":", 화살표는 회의록의 직접 언급"}`;}
+  function stop(){clearInterval(timer);timer=null;icon(true);}
+  function play(){if(timer){stop();return;}if(j>=last){prevSeen=new Set();m.clearArrows(()=>false);frame(0,true);}icon(false);
+    timer=setInterval(()=>{if(j>=last){stop();return;}frame(j+1,true);},opts.speed||450);}
+  btn.onclick=play;range.oninput=()=>{stop();frame(+range.value,false);};
+  icon(true);frame(last,false);
+  if(opts.autoplay&&!reduce){prevSeen=new Set();m.clearArrows(()=>false);frame(0,true);icon(false);timer=setInterval(()=>{if(j>=last){stop();return;}frame(j+1,true);},opts.speed||450);}
+  box._stop=stop;return box;}
 
 function curve(i, W=560, H=220){
   const P={l:30,r:18,t:14,b:28};const x0=new Date(M.d0),x1=new Date(M.d1);const X=d=>P.l+(d-x0)/(x1-x0)*(W-P.l-P.r);const Y=v=>H-P.b-v/17*(H-P.t-P.b);
@@ -315,7 +376,7 @@ function monthly(i, W=560, H=150){
 const A = issues.filter(i=>i.type==="A"), B = issues.filter(i=>i.type==="B");
 // 대표 사례: 조례로 제도화되며 점진적으로 퍼진 이슈 중 추천 순위가 가장 높은 것
 const heroIssue = A.find(i=>i.src.includes("조례")&&i.n_asm>=10) || A[0] || issues[0];
-let heroTimer=null;
+let heroPlayer=null;
 function renderOverview(){
   const v=$("#v-overview");v.replaceChildren();
   const hero=el("section",{class:"hero"});const L=el("div");
@@ -323,22 +384,10 @@ function renderOverview(){
   L.appendChild(el("p",{class:"lede"},`17개 광역의회의 회의록 ${M.n_docs.toLocaleString()}건을 읽고, ${fmtD(M.d0)}부터 ${fmtD(M.d1)}까지 새로 떠오른 정책 이슈 ${A.length+B.length}개의 출발점과 이동 순서를 추적했습니다. 화면의 모든 판단에는 근거가 된 회의록과 원문이 붙어 있습니다.`));
   const bt=el("div",{class:"btns"});const b1=el("button",{class:"btn"},"이슈 둘러보기");b1.onclick=()=>go("issues");
   const b2=el("button",{class:"btn ghost"},"먼저 움직인 의회 보기");b2.onclick=()=>go("assemblies");bt.append(b1,b2);L.appendChild(bt);
-  const stage=el("div",{class:"stage"});const sh=el("div",{class:"stage-head"});const st=el("div",{class:"stage-title"},heroIssue.label);const sd=el("div",{class:"stage-date"},"");
-  sh.append(st,sd);stage.appendChild(sh);const holder=el("div");stage.appendChild(holder);
-  const cap=el("div",{class:"stage-cap"});const capT=el("span",{},"");const replay=el("button",{class:"btn ghost",style:"padding:0;font-size:13px"},"다시 재생");
-  cap.append(capT,replay);stage.appendChild(cap);hero.append(L,stage);v.appendChild(hero);
-  // 한 번의 재생: 월 단위로 의회가 하나씩 켜진다
-  const months=[];{const s=new Date(heroIssue.tl[0].date),e=new Date(heroIssue.tl[heroIssue.tl.length-1].date);
-    for(let d=new Date(s.getFullYear(),s.getMonth(),1);d<=e;d=new Date(d.getFullYear(),d.getMonth()+1,1))months.push(new Date(d.getFullYear(),d.getMonth()+1,0));}
-  const iso=d=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
-  function frame(j){const cut=iso(months[Math.min(j,months.length-1)]);const n=heroIssue.tl.filter(t=>t.date<=cut).length;
-    holder.replaceChildren(tileMap(issueMapState(heroIssue,cut),{label:`${heroIssue.label} 확산 과정`}));
-    sd.textContent=fmtYM(cut);capT.textContent=`${n}개 의회에서 관측`;}
-  function play(){clearInterval(heroTimer);if(reduce){frame(months.length-1);return;}let j=0;frame(0);heroTimer=setInterval(()=>{j++;frame(j);if(j>=months.length-1)clearInterval(heroTimer);},420);}
-  replay.onclick=play;play();
-  stage.style.cursor="default";
-  const more=el("button",{class:"btn ghost",style:"padding:0;font-size:13px"},"자세히");more.onclick=()=>go("issues",{issue:heroIssue.id});cap.insertBefore(more,replay);
-
+  const stage=el("div",{class:"stage"});const sh=el("div",{class:"stage-head"});sh.appendChild(el("div",{class:"stage-title"},heroIssue.label));
+  const more=el("button",{class:"btn ghost",style:"padding:0;font-size:13px"},"자세히 보기");more.onclick=()=>go("issues",{issue:heroIssue.id});sh.appendChild(more);stage.appendChild(sh);
+  if(heroPlayer&&heroPlayer._stop)heroPlayer._stop();heroPlayer=player(heroIssue,{autoplay:true,speed:380});stage.appendChild(heroPlayer);
+  hero.append(L,stage);v.appendChild(hero);
   const figs=el("div",{class:"figs"});
   const lift=D.metrics.pos_rate?(D.metrics.precision_at_top10pct/D.metrics.pos_rate):null;
   [[M.n_utts.toLocaleString(),"개의 발언을 발언자 단위로 나눠 분석했습니다"],[String(A.length),"개 이슈가 시차를 두고 여러 의회로 퍼졌습니다"],
@@ -376,6 +425,7 @@ function innoChart(data, highlight){
   return svg;}
 
 /* ---------- issues ---------- */
+let detailPlayer=null;
 let sel=(A[0]||issues[0]||{}).id, fType="all";
 function syncType(){document.querySelectorAll("#ftype button").forEach(b=>b.setAttribute("aria-selected",b.dataset.f===fType));}
 document.querySelectorAll("#ftype button").forEach(b=>b.onclick=()=>{fType=b.dataset.f;syncType();refresh();});
@@ -403,9 +453,11 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();const i=byI
   wrap.appendChild(stats);
   if(i.upstream)wrap.appendChild(el("div",{class:"upnote"},"초기 발언에 법령 개정이나 중앙부처를 언급한 비중이 높아, 상위 법령이나 정부 정책에 따른 동시 대응일 가능성도 있습니다."));
   const g=el("div",{class:"grid2"});
-  const p1=el("div",{class:"panel"});p1.append(el("h3",{},"어디서 논의됐나"),el("p",{class:"hint"},"진할수록 먼저 관측된 의회입니다. 파란 화살표는 회의록의 직접 언급, 주황 점선은 다음 확산 가능성이 높은 의회입니다."));
-  const map=tileMap(issueMapState(i),{label:`${i.label} 관측 지도`});if(i.type==="A")arrows(map,i.tl.flatMap(t=>t.refs.map(r=>[r.src,t.a])));p1.appendChild(map);
-  const k1=el("div",{class:"keyrow"});[["var(--q700)","먼저"],["var(--q100)","나중"],["var(--q0)","미관측"]].forEach(([c,l])=>{const s=el("span"),w=el("i",{class:"sw"});w.style.background=c;s.append(w,document.createTextNode(l));k1.appendChild(s);});p1.appendChild(k1);
+  const p1=el("div",{class:"panel"});p1.append(el("h3",{},"어디서 논의됐나"),el("p",{class:"hint"},"재생 버튼을 누르면 월별로 논의가 번져 가는 과정을 볼 수 있습니다. 진할수록 먼저 관측된 의회이고, 파란 화살표는 회의록에서 다른 지역을 직접 언급한 경우입니다."));
+  if(detailPlayer&&detailPlayer._stop)detailPlayer._stop();detailPlayer=player(i);p1.appendChild(detailPlayer);
+  const k1=el("div",{class:"keyrow"});[["var(--q700)","먼저 관측"],["var(--q100)","나중 관측"],["var(--q0)","미관측"]].forEach(([c,l])=>{const s=el("span"),w=el("i",{class:"sw"});w.style.background=c;s.append(w,document.createTextNode(l));k1.appendChild(s);});
+  const ko=el("span"),wo=el("i",{class:"sw"});wo.style.border="2px solid var(--ink)";ko.append(wo,document.createTextNode("최초 관측"));k1.appendChild(ko);
+  const kp=el("span"),wp=el("i",{class:"sw"});wp.style.border="2px dashed var(--d-orange)";kp.append(wp,document.createTextNode("확산 예측"));k1.appendChild(kp);p1.appendChild(k1);
   const p2=el("div",{class:"panel"});p2.append(el("h3",{},"얼마나 빨리 퍼졌나"),el("p",{class:"hint"},"논의한 의회 수의 누적 곡선입니다. 점의 색은 근거 유형을 나타냅니다."));p2.appendChild(curve(i));
   const k2=el("div",{class:"keyrow"});[["var(--ink)","최초 관측"],["var(--d-blue)","명시적 참조"],["var(--d-orange)","비특정 참조"],["var(--d-neutral)","시간적 후행"]].forEach(([c,l])=>{const s=el("span"),w=el("i",{class:"ln"});w.style.background=c;s.append(w,document.createTextNode(l));k2.appendChild(s);});p2.appendChild(k2);
   p2.appendChild(el("h3",{style:"margin-top:22px;font-size:16px"},"월별 언급"));p2.appendChild(monthly(i));
@@ -440,8 +492,10 @@ function renderAssemblies(){const v=$("#v-assemblies");v.replaceChildren();
   const wrap=el("div",{class:"asm-wrap",style:"padding-top:0"});const inno=Object.fromEntries(D.innovation.map((d,k)=>[d.a,{...d,rank:k+1}]));
   const scores=D.innovation.map(d=>d.score),lo=Math.min(...scores),hi=Math.max(...scores);
   const left=el("div",{class:"panel"});
-  left.appendChild(tileMap(a=>{const d=inno[a]||{score:0};const r=hi>lo?(hi-d.score)/(hi-lo):0;const k=Math.round(r*4);const sel_=a===selAsm;
-    return {fill:`var(${STEPS[k]})`,ink:inkOn(k),line2:`${d.score.toFixed(2)}`,stroke:sel_?"var(--d-orange)":null,tip:[full(a),`혁신성 ${d.score.toFixed(2)}, ${d.rank}위`,`처음 다룬 이슈 ${d.origin}개`]};},{label:"의회 선택 지도",onClick:a=>{selAsm=a;renderAssemblies();}}));
+  const gm=geoMap({label:"의회 선택 지도",onClick:a=>{selAsm=a;renderAssemblies();}});
+  gm.update(a=>{const d=inno[a]||{score:0,rank:"-",origin:0};const r=hi>lo?(hi-d.score)/(hi-lo):0;const k=Math.round(r*4);
+    return {fill:`var(${STEPS[k]})`,ink:inkOn(k),sub:d.score.toFixed(2),stroke:a===selAsm?"var(--d-orange)":null,tip:[full(a),`혁신성 ${d.score.toFixed(2)}, ${d.rank}위`,`처음 다룬 이슈 ${d.origin}개`]};});
+  left.appendChild(gm.svg);
   const right=el("div",{class:"panel profile"});const d=inno[selAsm],pf=D.profiles[selAsm]||{led:[],keywords:[]};
   right.appendChild(el("h2",{},full(selAsm)));
   right.appendChild(el("div",{class:"sub"},`혁신성 점수 ${d.score.toFixed(2)}, 17곳 중 ${d.rank}위. 회의록 ${pf.n_docs.toLocaleString()}건, 이슈 ${pf.joined}개에 참여했습니다.`));

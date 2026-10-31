@@ -87,7 +87,7 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
         meta=dict(d0=_d(docs.date.min()), d1=_d(docs.date.max()), n_docs=int(len(docs)), n_utts=int(n_utts),
                   n_asm=int(docs.assembly.nunique()), n_issues=int(len(issues)),
                   n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out)),
-        names=ASSEMBLY_NAME, tiles=TILE, issues=out, innovation=innovation, profiles=profiles, metrics=m, weights=weights or {})
+        names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, metrics=m, weights=weights or {})
 
 
 def write_dashboard(path, payload):
@@ -97,4 +97,5 @@ def write_dashboard(path, payload):
         f.write(html)
 
 
+GEO = json.loads((Path(__file__).with_name("korea_geo.json")).read_text(encoding="utf-8"))
 TEMPLATE = (Path(__file__).with_name("dashboard_template.html")).read_text(encoding="utf-8")

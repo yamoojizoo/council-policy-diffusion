@@ -221,7 +221,7 @@ python run_pipeline.py --data_dir data --out_dir output
 
 | 파일 | 내용 |
 |---|---|
-| `output/dashboard.html` | 인터랙티브 대시보드(단일 HTML, 인터넷·서버 불필요): 개요(대표 이슈 확산 재생), 이슈별 확산 지도·누적 채택 곡선·근거 원문·확산 예측, 의회별 혁신성, 예측 모델 검증 |
+| `output/dashboard.html` | 인터랙티브 대시보드(단일 HTML, 인터넷·서버 불필요): 개요(대표 이슈가 실제 지도 위에서 월별로 번지는 과정 재생), 이슈별 확산 지도·누적 채택 곡선·근거 원문·확산 예측, 의회별 혁신성, 예측 모델 검증 |
 | `output/report.md` | 이슈별 서술형 보고서: ①핵심 이슈 ②최초 관측 ③후속 논의 흐름(근거 유형·원문) ④향후 확산 가능성 + 해석 유의사항 |
 | `output/results.json` | 위 내용의 기계가독 버전, 검증 지표, 모델 계수 |
 | `output/forecast_all.csv` | 모든 (이슈, 미관측 의회)의 예측 점수 |
@@ -239,6 +239,7 @@ python run_pipeline.py --data_dir data --out_dir output
 | kiwipiepy (Kiwi 한국어 형태소 분석기) | 0.24.1 | 명사구 검증 | 신규 키워드 후보 정제 |
 | jhgan/ko-sroberta-multitask (선택) | Hugging Face 공개 모델 | 이슈 명칭 임베딩 | 동의 표현 병합. 로컬 실행. 미설치 시 TF-IDF 사용 |
 | 광역 시·도 인접 관계 | 작성자 구성 (행정구역 경계 기준) | 예측 특징 '인접 광역 관측' | 예측 단계 보조 변수 |
+| 시·도 경계 지도 | 통계청 센서스용 행정구역경계 2013 (southkorea/southkorea-maps 단순화본, `tools/build_geo.py`로 경량화) | 대시보드 지도 그리기 | 시각화 전용. 분석·예측에는 사용하지 않음. 울릉도·독도와 작은 섬은 생략하고 제주는 위로 당겨 배치 |
 | 상용 LLM API | **사용하지 않음** | – | – |
 
 - 제공 데이터는 외부로 전송하지 않는다.
