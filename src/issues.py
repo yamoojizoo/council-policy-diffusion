@@ -32,7 +32,9 @@ ADMIN_STOP = ["정원", "행정기구", "수수료", "사용료", "보수", "수
               "지방공무원", "복무", "징계", "포상", "표창", "출자", "출연", "위원회 구성", "조직", "감사", "인사"]
 GENERIC_WORDS = {"관련", "관한", "대한", "도입", "운영", "지원", "예방", "추진", "사업", "계획", "문제", "상황", "경우", "부분",
                  "말씀", "생각", "의원", "위원", "위원장", "다음", "지금", "우리", "내용", "부분", "필요", "검토", "현황",
-                 "보고", "후속", "질의", "특정", "중심", "보도", "부담", "손실", "연령", "효과", "상태", "수준", "방식", "과정", "답변", "관리", "시행", "확대", "마련", "방안", "대책", "정도", "이번", "해당"}
+                 "보고", "후속", "질의", "특정", "중심", "보도", "부담", "손실", "연령", "효과", "상태", "수준", "방식", "과정",
+                 "실제", "일부", "전체", "의향", "연도", "그때", "여건", "흐름", "진전", "어르신들", "시작", "이후", "이전",
+                 "당시", "최근", "기존", "향후", "각종", "여러", "모든", "다른", "자체적", "전반", "부족", "증가", "감소", "답변", "관리", "시행", "확대", "마련", "방안", "대책", "정도", "이번", "해당"}
 # 회의 진행·예산 심사 등 매년 반복되는 절차어 (계절성 때문에 '신규'로 오인되기 쉬움)
 PROC_WORDS = {"예산", "예산안", "추가경정", "추경", "결산", "감사", "행정사무감사", "위원회", "회의", "자료", "제출", "요구",
               "요청", "선서", "선서문", "의결", "안건", "안건보기", "심사", "소관", "정례회", "임시회", "상반기", "하반기",
@@ -156,7 +158,7 @@ def _kiwi_validate(phrases, kiwi):
     return ok
 
 
-def extract_emerging_terms(utts, use_kiwi=True, kiwi_full=False, min_df=8, min_asm=3, early_frac=0.2,
+def extract_emerging_terms(utts, use_kiwi=True, kiwi_full=False, min_df=8, min_asm=3, early_frac=0.1, novelty_p=0.05,
                            max_terms=1500, prune_every=3000):
     """데이터 초기 구간(early_frac)에는 없다가 이후 여러 의회에서 등장한 명사구.
 
@@ -208,12 +210,19 @@ def extract_emerging_terms(utts, use_kiwi=True, kiwi_full=False, min_df=8, min_a
     # 발언자 표시에서 사람 이름을 모아 키워드 후보에서 제외
     names = {t for spk in utts.speaker.unique() for t in str(spk).split()
              if re.fullmatch(r"[가-힣]{2,4}", t) and not TITLE_TOKEN.search(t)}
-    d0, d1 = utts.date.min(), utts.date.max()
-    early_cut = (d0 + (d1 - d0) * early_frac).to_datetime64()
+    # 초기 구간은 '기간'이 아니라 '회의록 양' 기준으로 잡는다. 연초·선거철처럼 회의가 적은 시기를 초기 구간으로 잡으면
+    # 그 뒤 회의가 몰리는 달에 일반 표현이 대거 '신규'로 잡히기 때문이다.
+    early_cut = utts.date.quantile(early_frac).to_datetime64()
+    # 통계적 신규성 검정: 어떤 표현이 기간 내내 고르게 쓰였다면, 처음 관측 전 회의록(비율 q)에서 한 번도 안 나올 확률은
+    # (1-q)^df 이다. 이 확률이 5% 미만일 때만 '새로 등장'으로 인정한다(우연히 늦게 처음 잡힌 일반 표현 제거).
+    doc_dates = np.sort(utts.drop_duplicates("doc_id").date.values)
     rows = []
     for p, (df, bits, first, q4) in stat.items():
         n_asm = bin(bits).count("1")
         if df < min_df or n_asm < min_asm or first <= early_cut:
+            continue
+        q = np.searchsorted(doc_dates, first) / len(doc_dates)
+        if (1 - q) ** df >= novelty_p:
             continue
         if q4 / df >= 0.6:   # 연말 감사·예산 시즌에 몰린 절차어는 계절성으로 보고 제외
             continue
@@ -362,3 +371,33 @@ def index_mentions(utts, issues, snippet_w=110, context_w=320, per_doc_cap=3):
                              matched=r.text[oa:ob], snippet=_window(r.text, oa, ob, snippet_w),
                              context=_window(r.text, oa, ob, context_w)))
     return pd.DataFrame(rows).sort_values(["issue_id", "date", "doc_id", "utt_id"]).reset_index(drop=True)
+
+
+def apply_manual_merges(issues, path):
+    """config/merge_issues.txt 의 '대표명: 표현, 표현' 규칙으로 이슈를 합친다."""
+    import os
+    if not path or not os.path.exists(path):
+        return issues, 0
+    rules = []
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        head, rest = line.split(":", 1)
+        rules.append((head.strip(), [head.strip()] + [x.strip() for x in rest.split(",") if x.strip()]))
+    issues = issues.copy()
+    drop, n = set(), 0
+    for head, names in rules:
+        idx = issues.index[issues.label.isin(names)].tolist()
+        if len(idx) < 1:
+            continue
+        keep, others = idx[0], idx[1:]
+        issues.at[keep, "label"] = head
+        issues.at[keep, "variants"] = sorted({v for i in idx for v in issues.at[i, "variants"]} | set(names) - {head})
+        issues.at[keep, "surfaces"] = sorted({sf for i in idx for sf in issues.at[i, "surfaces"]}, key=len, reverse=True)
+        issues.at[keep, "source"] = sorted({x for i in idx for x in issues.at[i, "source"]})
+        drop.update(others)
+        n += len(others)
+    issues = issues.drop(index=list(drop)).reset_index(drop=True)
+    issues["issue_id"] = range(len(issues))
+    return issues, n

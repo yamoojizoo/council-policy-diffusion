@@ -95,6 +95,8 @@ def analyze_issue(m):
     upstream_flag = bool(len(firsts) >= 3 and burst >= 3 and upstream_share >= 0.15)
 
     monthly = m.set_index("date").resample("MS").size()
+    # 화제성: 한 회의록 안에서 두 번 이상 언급된 비율. 지나가며 한 번 쓰인 일반 표현은 0에 가깝다.
+    rep2 = float((m.groupby("doc_id").size() >= 2).mean())
     # 계절성(매년 같은 달에 반복: 결산·예산·감사 시즌 절차어) 판정
     moy = m.groupby([m.date.dt.year, m.date.dt.month]).doc_id.nunique()
     by_month = moy.groupby(level=1).sum()
@@ -111,7 +113,7 @@ def analyze_issue(m):
         n_mentions=int(len(m)), n_assemblies=int(len(firsts)), n_docs=int(m.doc_id.nunique()),
         origin=timeline[0], timeline=timeline,
         n_explicit=int(sum(t["relation"] == "explicit" for t in timeline)),
-        upstream_flag=upstream_flag, upstream_share=round(upstream_share, 3), seasonal=seasonal, simultaneous=simultaneous, burstiness=round(burstiness, 2),
+        upstream_flag=upstream_flag, upstream_share=round(upstream_share, 3), seasonal=seasonal, rep2=round(rep2, 3), simultaneous=simultaneous, burstiness=round(burstiness, 2),
         upstream_example=(upstream.iloc[0][["assembly", "date", "minutes_name", "snippet"]].to_dict()
                           if len(upstream) else None),
         monthly={k.strftime("%Y-%m"): int(v) for k, v in monthly.items()},

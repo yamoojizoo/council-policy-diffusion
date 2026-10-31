@@ -38,7 +38,7 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
     if len(preds):
         for iid, g in preds.sort_values("p", ascending=False).groupby("issue_id"):
             pred_by[int(iid)] = [dict(a=r.assembly, p=round(float(r.p), 3), tier=r.tier, why=list(r.reasons))
-                                 for r in g.head(6).itertuples(index=False)]
+                                 for r in g.itertuples(index=False)]   # 미관측 의회 전체(정책 공백 분석에 사용)
     out = []
     for iid in ranked_novel:
         s, it = spread[iid], iss_map[iid]
@@ -82,12 +82,33 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
         docs_a = docs[docs.assembly == a]
         profiles[a] = dict(led=led, joined=joined, n_docs=int(len(docs_a)),
                            keywords=[dict(label=k, n=int(n)) for k, n in (asm_keywords or {}).get(a, [])][:6])
+    # 의회 간 선행 빈도: 점진 확산형 이슈에서 x가 y보다 30일 이상 먼저 관측된 이슈 수 (인과가 아닌 시간 순서 통계)
+    codes = list(REGIONS)
+    lead = {x: {y: 0 for y in codes} for x in codes}
+    both = {x: {y: 0 for y in codes} for x in codes}
+    explicit = {x: {y: 0 for y in codes} for x in codes}
+    for it in out:
+        if it["type"] != "A":
+            continue
+        dates = {t["a"]: pd.Timestamp(t["date"]) for t in it["tl"]}
+        for x, dx in dates.items():
+            for y, dy in dates.items():
+                if x == y or x not in lead or y not in lead:
+                    continue
+                both[x][y] += 1
+                if (dy - dx).days >= 30:
+                    lead[x][y] += 1
+        for t in it["tl"]:
+            for r in t["refs"]:
+                if r["src"] in explicit and t["a"] in explicit:
+                    explicit[r["src"]][t["a"]] += 1
     m = {k: v for k, v in (metrics or {}).items()}
     return dict(
         meta=dict(d0=_d(docs.date.min()), d1=_d(docs.date.max()), n_docs=int(len(docs)), n_utts=int(n_utts),
                   n_asm=int(docs.assembly.nunique()), n_issues=int(len(issues)),
                   n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out)),
-        names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, metrics=m, weights=weights or {})
+        names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, nbr={a: v["nbr"] for a, v in REGIONS.items()},
+        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {})
 
 
 def write_dashboard(path, payload):

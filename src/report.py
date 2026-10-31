@@ -35,6 +35,8 @@ def rank_issues(issues, spread, d0=None, novelty_days=90):
         s = spread.get(int(r.issue_id))
         if not s or s["n_assemblies"] < 3 or s.get("seasonal"):
             continue
+        if r.source == ["신규키워드"] and s.get("rep2", 1) < 0.08:
+            continue  # 한 회의록 안에서 거의 반복되지 않는 표현은 지나가는 말로 보고 제외
         score = (1.5 * min(s["n_assemblies"], 12) + 2.0 * s["n_explicit"] + 1.5 * math.log1p(s.get("burstiness", 0))
                  + 0.5 * math.log1p(s["n_docs"]) + (3.0 if "조례" in r.source else 0)
                  + (2.0 if "신규키워드" in r.source and "조례" in r.source else 0))

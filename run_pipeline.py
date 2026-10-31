@@ -46,6 +46,7 @@ def main():
     ap.add_argument("--top_n", type=int, default=15)
     ap.add_argument("--exclude", default="config/exclude_issues.txt",
                     help="분석자가 검토 후 제외할 이슈 대표 명칭 목록(한 줄에 하나)")
+    ap.add_argument("--merge", default="config/merge_issues.txt", help="분석자 검토 후 같은 이슈로 묶을 표현 목록")
     ap.add_argument("--reuse", action="store_true", help="work/ 에 저장된 전처리 결과 재사용")
     a = ap.parse_args()
 
@@ -76,6 +77,9 @@ def main():
     emer = I.filter_keywords(emer)
     cands = pd.concat([ords[ords.n_asm >= 2] if len(ords) else ords, emer], ignore_index=True)
     issues = I.merge_candidates(cands, model_name=a.embed_model or None)
+    issues, n_merged = I.apply_manual_merges(issues, a.merge)
+    if n_merged:
+        log(f"병합 규칙({a.merge}) 적용: {n_merged}개 표현을 대표 이슈로 합침")
     if a.exclude and os.path.exists(a.exclude):
         ex = {l.strip() for l in open(a.exclude, encoding="utf-8") if l.strip() and not l.startswith("#")}
         before = len(issues)
