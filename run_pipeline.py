@@ -110,7 +110,7 @@ def main():
     novel = [i for i in rank_issues(issues, spread, d0=d0) if is_novel(spread[i], d0)]
     write_dashboard(f"{a.out_dir}/dashboard.html",
                     build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
-                                  assembly_keywords(mentions, issues)))
+                                  assembly_keywords(mentions, issues), mentions))
     log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
 

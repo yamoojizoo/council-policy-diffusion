@@ -32,7 +32,7 @@ def _clip(s, n=240):
     return s if len(s) <= n else s[:n] + "…"
 
 
-def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None):
+def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None, mentions=None):
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     pred_by = {}
     if len(preds):
@@ -102,6 +102,27 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
             for r in t["refs"]:
                 if r["src"] in explicit and t["a"] in explicit:
                     explicit[r["src"]][t["a"]] += 1
+    # 의회별 특화 이슈: 관련 회의록의 절반 이상이 한 의회에 몰린 이슈 (지나가는 말·일반 표현 제외)
+    special = {a: [] for a in REGIONS}
+    if mentions is not None and len(mentions):
+        lab = dict(zip(issues.issue_id, issues.label))
+        src = dict(zip(issues.issue_id, issues.source))
+        g = mentions.groupby(["issue_id", "assembly"]).doc_id.nunique().rename("n").reset_index()
+        tot = g.groupby("issue_id").n.sum()
+        g["tot"] = g.issue_id.map(tot)
+        g["share"] = g.n / g.tot
+        g = g[(g.n >= 10) & (g.share > 0.5) & g.issue_id.isin(lab)]
+        in_dash = {it["id"] for it in out}
+        for r in g.sort_values("n", ascending=False).itertuples(index=False):
+            sp_ = spread.get(int(r.issue_id), {})
+            if src.get(r.issue_id) == ["신규키워드"] and sp_.get("rep2", 1) < 0.1:
+                continue
+            if r.assembly in special and len(special[r.assembly]) < 8:
+                special[r.assembly].append(dict(label=lab[r.issue_id], n=int(r.n), share=round(float(r.share), 2),
+                                                tot=int(r.tot), id=int(r.issue_id) if int(r.issue_id) in in_dash else None,
+                                                n_asm=int(sp_.get("n_assemblies", 1))))
+    for a in profiles:
+        profiles[a]["special"] = special.get(a, [])
     m = {k: v for k, v in (metrics or {}).items()}
     return dict(
         meta=dict(d0=_d(docs.date.min()), d1=_d(docs.date.max()), n_docs=int(len(docs)), n_utts=int(n_utts),
