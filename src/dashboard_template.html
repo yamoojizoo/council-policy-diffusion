@@ -176,6 +176,33 @@ svg.geo .lb,svg.geo .lb2{transition:fill .5s}
 .kw{display:flex;flex-wrap:wrap;gap:8px}
 .kw span{background:var(--fill);border-radius:999px;padding:6px 12px;font-size:13px}
 
+/* trend */
+.tr-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:12px}
+.tr-month{font-size:26px;font-weight:600;letter-spacing:-0.03em;white-space:nowrap;font-variant-numeric:tabular-nums}
+.tr-list{position:relative;overflow:hidden}
+.tr-row{position:absolute;left:0;right:0;height:48px;display:grid;grid-template-columns:36px minmax(0,1fr) 64px 60px 52px;gap:12px;align-items:center;padding:0 10px;border-radius:12px;cursor:pointer;
+  transition:top .6s cubic-bezier(.2,.8,.2,1),opacity .4s,transform .4s}
+.tr-row:hover{background:var(--fill)}
+.tr-rk{font-size:20px;font-weight:700;color:var(--ink-3);text-align:center;font-variant-numeric:tabular-nums}
+.tr-rk.top{color:var(--accent)}
+.tr-lb{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr-sub{font-size:12px;color:var(--ink-2)}
+.tr-n{font-size:13px;color:var(--ink-2);text-align:right;font-variant-numeric:tabular-nums}
+.tr-chg{font-size:12.5px;font-weight:600;text-align:right;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.tr-chg.up{color:var(--d-red)}.tr-chg.down{color:var(--d-blue)}
+.tr-chg.new{color:var(--d-orange)}
+.tr-empty{padding:20px 10px}
+.ticker{display:flex;align-items:center;gap:14px;background:var(--surface);border-radius:999px;padding:8px 10px 8px 18px;margin:0 0 28px;overflow:hidden}
+.tk-lab{font-size:13px;font-weight:600;color:var(--d-red);white-space:nowrap}
+.tk-win{position:relative;flex:1;height:24px;overflow:hidden}
+.tk-item{position:absolute;inset:0;border:0;background:none;text-align:left;font-size:15px;cursor:pointer;padding:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:transform .45s ease,opacity .45s}
+.tk-item b{color:var(--accent);margin-right:4px}
+.tk-item.in{transform:translateY(100%);opacity:0;animation:tkin .45s forwards}
+.tk-item.out{transform:translateY(-100%);opacity:0}
+@keyframes tkin{to{transform:none;opacity:1}}
+.tk-more{border:0;background:var(--fill);border-radius:999px;padding:6px 12px;font-size:13px;cursor:pointer;white-space:nowrap}
+@media (max-width:720px){.tr-row{grid-template-columns:28px minmax(0,1fr) 48px 44px}.tr-row svg{display:none}.tk-more{display:none}}
+
 /* gap */
 .gap{display:grid;grid-template-columns:minmax(0,1fr) 80px 170px 150px;gap:16px;align-items:center;padding:12px 4px;border-top:1px solid var(--hair-2);cursor:pointer;border-radius:8px}
 .gap:hover{background:var(--surface-2)}
@@ -214,7 +241,7 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
     <button role="tab" data-v="issues" aria-selected="false">이슈</button>
     <button role="tab" data-v="assemblies" aria-selected="false">의회</button>
     <button role="tab" data-v="relations" aria-selected="false">관계</button>
-    <button role="tab" data-v="flow" aria-selected="false">흐름</button>
+    <button role="tab" data-v="flow" aria-selected="false">트렌드</button>
     <button role="tab" data-v="model" aria-selected="false">예측 모델</button>
   </div>
   <button class="icon-btn" id="theme" aria-label="화면 밝기 전환"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
@@ -407,6 +434,7 @@ function renderOverview(){
   const more=el("button",{class:"btn ghost",style:"padding:0;font-size:13px"},"자세히 보기");more.onclick=()=>go("issues",{issue:heroIssue.id});sh.appendChild(more);stage.appendChild(sh);
   if(heroPlayer&&heroPlayer._stop)heroPlayer._stop();heroPlayer=player(heroIssue,{autoplay:true,speed:380});stage.appendChild(heroPlayer);
   hero.append(L,stage);v.appendChild(hero);
+  v.appendChild(ticker());
   const figs=el("div",{class:"figs"});
   const lift=D.metrics.pos_rate?(D.metrics.precision_at_top10pct/D.metrics.pos_rate):null;
   [[M.n_utts.toLocaleString(),"개의 발언을 발언자 단위로 나눠 분석했습니다"],[String(A.length),"개 이슈가 시차를 두고 여러 의회로 퍼졌습니다"],
@@ -551,6 +579,57 @@ function renderModel(){const v=$("#v-model");v.replaceChildren();const m=D.metri
     p.appendChild(svg);s.appendChild(p);}
   v.appendChild(s);}
 
+/* ---------- 급상승 이슈 순위 (실시간 검색어 방식) ---------- */
+const MKEYS=(()=>{const a=[],s=new Date(M.d0),e=new Date(M.d1);for(let d=new Date(s.getFullYear(),s.getMonth(),1);d<=e;d=new Date(d.getFullYear(),d.getMonth()+1,1))a.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);return a;})();
+function topFor(k,n=10){return issues.filter(i=>(i.monthly[k]||0)>0).sort((x,y)=>(y.monthly[k]||0)-(x.monthly[k]||0)||y.n_asm-x.n_asm).slice(0,n);}
+function rankMap(k){const m={};topFor(k).forEach((i,r)=>m[i.id]=r+1);return m;}
+const lastActive=[...MKEYS].reverse().find(k=>topFor(k).length>=5)||MKEYS[MKEYS.length-1];
+
+function trendBoard(opts={}){
+  const box=el("div",{class:"panel trend"});
+  const head=el("div",{class:"tr-head"});const t=el("div");t.append(el("h3",{},"급상승 이슈 순위"),el("p",{class:"hint",style:"margin:0"},"그달 회의록에서 가장 많이 언급된 신규 이슈 10개입니다. 화살표는 지난달 순위와 비교한 변화입니다."));
+  const md=el("div",{class:"tr-month"});head.append(t,md);box.appendChild(head);
+  const list=el("div",{class:"tr-list",role:"list"});box.appendChild(list);
+  const ctr=el("div",{class:"pctl"});const btn=el("button",{class:"pbtn","aria-label":"월별 순위 재생"});
+  const range=el("input",{type:"range",min:"0",max:String(MKEYS.length-1),value:String(MKEYS.indexOf(lastActive)),class:"prange","aria-label":"월 선택"});
+  const ticks=el("div",{class:"pticks"});ticks.append(el("span",{},fmtYM(MKEYS[0]+"-01")),el("span",{},fmtYM(MKEYS[MKEYS.length-1]+"-01")));
+  const rw=el("div",{class:"prw"});rw.append(range,ticks);ctr.append(btn,rw);box.appendChild(ctr);
+  const ROW=52,rows={};list.style.height=(10*ROW)+"px";
+  const icon=play=>{btn.replaceChildren();const s=sv("svg",{viewBox:"0 0 16 16",width:"14",height:"14"});s.appendChild(play?sv("path",{d:"M4 2.5v11l9-5.5z",fill:"currentColor"}):sv("path",{d:"M4 2.5h3v11H4zM9 2.5h3v11H9z",fill:"currentColor"}));btn.appendChild(s);};
+  function mini(i,j){const ks=MKEYS.slice(Math.max(0,j-5),j+1);const v=ks.map(k=>i.monthly[k]||0),mx=Math.max(1,...v);
+    const s=sv("svg",{viewBox:"0 0 60 20",width:"60",height:"20","aria-hidden":"true"});
+    v.forEach((x,q)=>{const h=Math.max(1.5,x/mx*18);s.appendChild(sv("rect",{x:q*10+1,y:20-h,width:8,height:h,rx:2,fill:q===v.length-1?"var(--d-blue)":"var(--d-neutral)"}));});return s;}
+  function show(j){range.value=String(j);const k=MKEYS[j],prev=j>0?rankMap(MKEYS[j-1]):{};const top=topFor(k);md.textContent=fmtYM(k+"-01");
+    const keep=new Set(top.map(i=>i.id));
+    for(const id in rows){if(!keep.has(+id)){const r=rows[id];r.style.opacity="0";r.style.transform="translateX(16px)";setTimeout(()=>r.remove(),400);delete rows[id];}}
+    if(!top.length){list.querySelectorAll(".tr-empty").forEach(x=>x.remove());list.appendChild(el("div",{class:"tr-empty hint"},"이달에는 신규 이슈 언급이 없습니다."));return;}
+    list.querySelectorAll(".tr-empty").forEach(x=>x.remove());
+    top.forEach((i,r)=>{let row=rows[i.id];const fresh=!row;
+      if(fresh){row=el("div",{class:"tr-row",role:"listitem",tabindex:"0"});row.style.top=(10*ROW)+"px";row.style.opacity="0";
+        const open=()=>go("issues",{issue:i.id});row.onclick=open;row.onkeydown=e=>{if(e.key==="Enter")open();};list.appendChild(row);rows[i.id]=row;}
+      row.replaceChildren();const p=prev[i.id];
+      const chg=el("span",{class:"tr-chg"});
+      if(!p){chg.textContent="NEW";chg.classList.add("new");}else if(p>r+1){chg.textContent=`▲${p-r-1}`;chg.classList.add("up");}else if(p<r+1){chg.textContent=`▼${r+1-p}`;chg.classList.add("down");}else chg.textContent="–";
+      const nm=el("div",{class:"tr-nm"});nm.append(el("div",{class:"tr-lb"},i.label),el("div",{class:"tr-sub"},`${i.type==="A"?"점진 확산":"동시다발"}, ${i.n_asm}개 의회`));
+      row.append(el("span",{class:"tr-rk"+(r<3?" top":"")},String(r+1)),nm,mini(i,j),el("span",{class:"tr-n"},`${i.monthly[k]}건`),chg);
+      hover(row,()=>[`${i.monthly[k]}건 언급`,i.label,p?`지난달 ${p}위`:"지난달 10위 밖"]);
+      requestAnimationFrame(()=>{row.style.top=(r*ROW)+"px";row.style.opacity="1";row.style.transform="none";});});}
+  let j=+range.value,timer=null;
+  function stop(){clearInterval(timer);timer=null;icon(true);}
+  btn.onclick=()=>{if(timer){stop();return;}if(j>=MKEYS.length-1)j=0;show(j);icon(false);timer=setInterval(()=>{if(j>=MKEYS.length-1){stop();return;}j++;show(j);},opts.speed||1100);};
+  range.oninput=()=>{stop();j=+range.value;show(j);};
+  icon(true);show(j);box._stop=stop;return box;}
+
+// 개요 화면 상단의 한 줄 롤링 표시 (포털 실시간 검색어처럼 순위가 돌아가며 보임)
+let tickerTimer=null;
+function ticker(){const k=lastActive,top=topFor(k);const wrap=el("div",{class:"ticker"});
+  const lab=el("span",{class:"tk-lab"},`${fmtYM(k+"-01")} 급상승`);const win=el("div",{class:"tk-win"});const btn=el("button",{class:"tk-more"},"순위 전체 보기");btn.onclick=()=>go("flow");
+  wrap.append(lab,win,btn);if(!top.length)return wrap;
+  let n=0;const item=r=>{const i=top[r];const b=el("button",{class:"tk-item"});b.append(el("b",{},String(r+1)),document.createTextNode(" "+i.label));b.onclick=()=>go("issues",{issue:i.id});return b;};
+  win.appendChild(item(0));clearInterval(tickerTimer);
+  if(!reduce)tickerTimer=setInterval(()=>{n=(n+1)%top.length;const old=win.firstChild,nw=item(n);nw.classList.add("in");win.appendChild(nw);old.classList.add("out");setTimeout(()=>{old.remove();nw.classList.remove("in");},450);},2600);
+  return wrap;}
+
 /* ---------- 정책 공백 (의회 화면) ---------- */
 function gapList(a){
   const rows=[];for(const i of issues){if(i.tl.some(t=>t.a===a))continue;const p=(i.pred||[]).find(x=>x.a===a);if(!p)continue;
@@ -616,9 +695,12 @@ function renderRelations(){const v=$("#v-relations");v.replaceChildren();
   p.appendChild(svg);v.appendChild(p);}
 
 /* ---------- 월별 흐름 ---------- */
-let flowSel=null;
+let flowSel=null, trendBox=null;
 function renderFlow(){const v=$("#v-flow");v.replaceChildren();
-  const s=el("section",{class:"block",style:"padding-top:56px"});s.appendChild(el("h2",{},"달마다 어떤 이슈가 새로 떠올랐나"));
+  const s0=el("section",{class:"block",style:"padding-top:56px"});s0.appendChild(el("h2",{},"지금 의회에서 뜨는 이슈"));
+  s0.appendChild(el("p",{class:"intro"},"포털의 실시간 검색어처럼, 달마다 회의록에서 가장 많이 언급된 신규 이슈의 순위를 보여 줍니다. 재생을 누르면 2024년부터 순위가 바뀌어 온 흐름을 볼 수 있고, 이슈를 누르면 확산 지도로 이동합니다."));
+  if(trendBox&&trendBox._stop)trendBox._stop();trendBox=trendBoard();s0.appendChild(trendBox);v.appendChild(s0);
+  const s=el("section",{class:"block"});s.appendChild(el("h2",{},"달마다 어떤 이슈가 새로 떠올랐나"));
   s.appendChild(el("p",{class:"intro"},"각 이슈가 처음 관측된 달을 기준으로 셌습니다. 데이터 첫 90일은 이전부터 이어진 이슈와 구분할 수 없어 비워 두었고, 그 직후 몇 달은 데이터 이전에 시작된 논의가 처음 잡히는 경우가 섞여 높게 나올 수 있습니다. 막대를 누르면 그달에 등장한 이슈를 볼 수 있습니다."));v.appendChild(s);
   const keys=[];{const a=new Date(M.d0),b=new Date(M.d1);for(let d=new Date(a.getFullYear(),a.getMonth(),1);d<=b;d=new Date(d.getFullYear(),d.getMonth()+1,1))keys.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}`);}
   const by={};keys.forEach(k=>by[k]={A:[],B:[]});issues.forEach(i=>{const k=i.tl[0].date.slice(0,7);if(by[k])by[k][i.type].push(i);});
