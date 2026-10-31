@@ -13,7 +13,7 @@ from src import issues as I
 from src.predict import backtest_and_predict
 from src.preprocess import build_tables
 from src.dashboard import build_payload, write_dashboard
-from src.report import is_novel, rank_issues, write_report
+from src.report import assembly_keywords, is_novel, rank_issues, write_report
 from src.spread import analyze_all
 
 
@@ -105,7 +105,8 @@ def main():
     d0 = docs.date.min()
     novel = [i for i in rank_issues(issues, spread, d0=d0) if is_novel(spread[i], d0)]
     write_dashboard(f"{a.out_dir}/dashboard.html",
-                    build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts)))
+                    build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
+                                  assembly_keywords(mentions, issues)))
     log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
 
