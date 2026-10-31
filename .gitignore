@@ -1,5 +1,6 @@
 # 주최 측 제공 데이터와 그 분석 결과(원문 인용 포함)는 경진대회 목적 외 사용·재배포 금지 -> 저장소에 올리지 않음
-data/
+data/*
+!data/.gitkeep
 data_*/
 output/
 output_*/
