@@ -120,6 +120,15 @@ def main():
                                   assembly_keywords(mentions, issues), mentions))
     log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
+    # 정책확산 이론 가설 검증 (예측 모델과 같은 학습 표본 사용)
+    from src import hypotheses as HY, predict as PR
+    train = PR.LAST_TRAIN
+    if train is None:
+        train = PR.build_train(mentions, docs, issues, horizon=a.horizon_days)[0]
+    hres = HY.run_all(train, spread, novel, docs, mentions)
+    HY.write(hres, f"{a.out_dir}/hypotheses.md", f"{a.out_dir}/hypotheses.json")
+    log(f"이론 가설 검증: {a.out_dir}/hypotheses.md")
+
 
 if __name__ == "__main__":
     main()

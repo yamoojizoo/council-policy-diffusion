@@ -126,8 +126,11 @@ def _score(y, p):
                 precision_at_top10pct=float(np.asarray(y)[top].mean()), pos_rate=float(np.mean(y)), n=int(len(y)))
 
 
-def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warmup=180, ext=None):
-    feats = FEATS + (list(EXT_COLS) if ext else [])
+LAST_TRAIN = None   # 이론 가설 검증(hypotheses.py)에서 같은 학습 표본을 다시 쓰기 위해 보관
+
+
+def build_train(mentions, docs, issues=None, horizon=180, step=60, warmup=180, ext=None):
+    """기준 시점 T를 60일 간격으로 옮기며 (이슈, 미관측 의회) 표본과 T 이후 horizon일 내 관측 여부 라벨을 만든다."""
     assemblies = sorted(docs.assembly.dropna().unique())
     is_ord = {} if issues is None else dict(zip(issues.issue_id, issues.source.map(lambda s: int("조례" in s))))
     d0, d1 = docs.date.min(), docs.date.max()
@@ -138,6 +141,16 @@ def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warm
         win = docs[(docs.date > T) & (docs.date <= T + H)]
         frames.append(make_rows(mentions, docs, assemblies, T, horizon, set(win.assembly), is_ord, ext))
     train = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    return train, cutoffs, assemblies, is_ord
+
+
+def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warmup=180, ext=None):
+    global LAST_TRAIN
+    feats = FEATS + (list(EXT_COLS) if ext else [])
+    train, cutoffs, assemblies, is_ord = build_train(mentions, docs, issues, horizon, step, warmup, ext)
+    LAST_TRAIN = train
+    d1 = docs.date.max()
+    H = pd.Timedelta(days=horizon)
 
     metrics, model, weights = {}, None, None
     if len(train) and train.y.nunique() == 2 and train.y.sum() >= 10:

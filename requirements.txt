@@ -2,6 +2,7 @@
 pandas>=2.2          # 검증 3.0.5
 numpy>=1.26          # 검증 2.5.3
 scikit-learn>=1.4    # 검증 1.9.1
+scipy>=1.10          # 검증 1.18.1 (가설 검정)
 kiwipiepy==0.24.1    # 한국어 형태소 분석기 (로컬 실행)
 pyahocorasick>=2.0   # 다수 이슈 표현 동시 탐색. 없으면 정규식으로 자동 대체(느림)
 pyarrow>=15          # 선택: 중간 결과 parquet 저장. 없으면 pickle

@@ -47,6 +47,7 @@ python run_pipeline.py --data_dir data --out_dir output
 - `output/report.md`: 항목별 서술형 보고서 (①핵심 이슈 ②최초 관측 ③후속 논의 흐름 ④향후 확산 가능성 + 해석 유의사항)
 - `output/results.json`: 위 내용의 기계가독 버전과 모델 검증 지표
 - `output/forecast_all.csv`: 모든 (이슈, 미관측 의회)의 예측 점수
+- `output/hypotheses.md`: 정책확산 이론 가설 검증 결과(이웃 효과, 혁신성 일관성, 동시다발형 계기, 이슈관심주기)
 - `output/issue_dictionary.json`: 이슈 사전(대표 명칭, 유사 표현, 매칭 표면형)
 - `output/work/`: 중간 산출물(발언 테이블, 언급 색인)
 
