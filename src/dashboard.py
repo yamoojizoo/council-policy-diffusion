@@ -8,6 +8,7 @@
   4) 예측 모델: 시점 이동 백테스트 결과, 특징별 계수
 """
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -32,6 +33,59 @@ def _clip(s, n=240):
     return s if len(s) <= n else s[:n] + "…"
 
 
+FIELDS = [("교육", r"교육"), ("복지·보건", r"복지|보건|여성|가족"), ("환경·기후", r"환경|기후|탄소|수자원"),
+          ("경제·산업", r"경제|산업|노동|과학|미래|일자리"), ("농림·해양", r"농|수산|해양|축산"),
+          ("건설·교통·도시", r"건설|교통|도시|주택|공간|균형"), ("안전·소방", r"안전|소방"),
+          ("문화·관광·체육", r"문화|관광|체육"), ("행정·자치", r"행정|자치|기획|운영|정책")]
+_FIELD_RE = [(f, re.compile(rx)) for f, rx in FIELDS]
+_NONTOPIC = re.compile(r"본회의|예산결산|^기타$|^상임위원회$|^특별위원회$|행정사무감사$|^$")
+# 그 의제를 언급한 같은 문장에서 법률 차원의 대응을 요구하는 표현
+LAWREQ = re.compile(r"법\s?개정|법률\s?개정|개정\s?법률|상위\s?법|법적\s?근거|근거\s?법령|법제화|입법(?!\s?예고)|"
+                                  r"국회에\s?(?:건의|요청|촉구|계류)|시행령\s?개정|법령\s?(?:정비|개정)|법\s?제정|특별법")
+# 법 개정을 '요구'하는 문장만 남긴다(이미 바뀐 상위법을 조례에 반영하는 문장은 하향식 정비라서 제외)
+DEMAND = re.compile(r"필요|촉구|건의|요청|요구|시급|해야|돼야|되어야|마련돼|마련해|개선해|바랍니다|부탁")
+COMPLY = re.compile(r"반영|따라|따른|현행화|정비하|정비를|개정됨|제정되면서|분리됨|인용\s?조항|준용")
+ORD = re.compile(r"조례안|조례\s?(?:일부|전부)?\s?개정|조례를?\s?(?:제정|발의)")
+_SENT = re.compile(r"(?<=[다요까죠])[.?!]\s+|(?<=[.?!])\s+")
+
+
+def _sentence(ctx, matched):
+    for s in _SENT.split(str(ctx)):
+        if matched and matched in s:
+            return s
+    return ""
+
+
+def issue_extras(mentions, ids):
+    """의제별 소관 분야(언급된 상임위원회 기준), 조례안으로 다룬 의회, 법 개정·국회 대응 요구 발언을 정리한다."""
+    out = {}
+    if mentions is None or not len(mentions):
+        return out
+    m = mentions[mentions.issue_id.isin(ids)]
+    for iid, g in m.groupby("issue_id"):
+        score = {}
+        for com, n in g.committee.fillna("").value_counts().items():
+            if _NONTOPIC.search(com):
+                continue
+            hit = [f for f, rx in _FIELD_RE if rx.search(com)]
+            for f in hit:
+                score[f] = score.get(f, 0) + n / len(hit)
+        tot = sum(score.values())
+        field = max(score, key=score.get) if score and score[max(score, key=score.get)] / tot >= 0.3 else "복합"
+        sents = [(_sentence(c, mt), r) for c, mt, r in zip(g.context, g.matched, g.itertuples(index=False))]
+        ord_asm = sorted({r.assembly for s, r in sents if ORD.search(s)})
+        law = [(s, r) for s, r in sents if len(s) <= 300 and LAWREQ.search(s) and DEMAND.search(s) and not COMPLY.search(s)]
+        quotes, seen = [], set()
+        for s, r in sorted(law, key=lambda x: x[1].date):
+            if r.assembly in seen:
+                continue
+            seen.add(r.assembly)
+            quotes.append(dict(a=r.assembly, date=_d(r.date), m=r.minutes_name, sp=r.speaker, q=_clip(s, 260)))
+        out[int(iid)] = dict(field=field, ord_asm=ord_asm,
+                             law=dict(n_asm=len({r.assembly for _, r in law}), n=len(law), quotes=quotes[:3]))
+    return out
+
+
 def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None, mentions=None):
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     pred_by = {}
@@ -39,6 +93,7 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
         for iid, g in preds.sort_values("p", ascending=False).groupby("issue_id"):
             pred_by[int(iid)] = [dict(a=r.assembly, p=round(float(r.p), 3), tier=r.tier, why=list(r.reasons))
                                  for r in g.itertuples(index=False)]   # 미관측 의회 전체(정책 공백 분석에 사용)
+    extras = issue_extras(mentions, list(ranked_novel))
     out = []
     for iid in ranked_novel:
         s, it = spread[iid], iss_map[iid]
@@ -55,7 +110,9 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
                         src=it["source"], type="B" if s["simultaneous"] else "A",
                         n_asm=s["n_assemblies"], n_docs=s["n_docs"], n_m=s["n_mentions"],
                         n_exp=s["n_explicit"], upstream=s["upstream_flag"], tl=tl,
-                        monthly=s["monthly"], pred=pred_by.get(iid, [])))
+                        monthly=s["monthly"], pred=pred_by.get(iid, []),
+                        field=extras.get(iid, {}).get("field", "복합"), ord_asm=extras.get(iid, {}).get("ord_asm", []),
+                        law=extras.get(iid, {}).get("law", dict(n_asm=0, n=0, quotes=[]))))
 
     # 의회별 혁신성: A형 이슈에서의 채택 순위 백분위 평균 (먼저 다룰수록 1에 가까움)
     inno = {a: [] for a in REGIONS}
@@ -129,7 +186,7 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
                   n_asm=int(docs.assembly.nunique()), n_issues=int(len(issues)),
                   n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out)),
         names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, nbr={a: v["nbr"] for a, v in REGIONS.items()},
-        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {})
+        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"])
 
 
 def write_dashboard(path, payload):
