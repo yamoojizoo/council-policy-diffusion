@@ -15,6 +15,7 @@ import pandas as pd
 
 from .regions import neighbors
 
+EXT_COLS = {"log_pop": "인구(로그)", "fin_indep": "재정자립도", "aging": "고령인구비율", "log_inc": "1인당 지역총소득(로그)"}
 FEATS = ["log_n_obs", "frac_obs", "log_n90", "nbr_frac", "nbr_recent", "momentum", "log_recent",
          "sim", "sim_max", "age_years", "asm_new", "asm_vol", "is_ord"]
 FEAT_KO = {
@@ -43,7 +44,22 @@ HEURISTIC_W = dict(log_n_obs=0.6, frac_obs=0.2, log_n90=0.6, nbr_frac=0.8, nbr_r
                    log_recent=0.4, sim=0.5, sim_max=0.5, age_years=-0.2, asm_new=0.5, asm_vol=0.2, is_ord=0.1)
 
 
-def make_rows(mentions, docs, assemblies, T, horizon=None, active=None, is_ord=None):
+def load_external(path):
+    """외부 보조 데이터(시도별 통계, 분석 기준일 이전 공표값)를 읽어 의회 코드 -> 특징 dict 로 만든다.
+    CSV 열: 의회코드(서울, 부산, ...), 인구, 재정자립도, 고령인구비율, 1인당지역총소득"""
+    import os
+    if not path or not os.path.exists(path):
+        return None
+    df = pd.read_csv(path, encoding="utf-8-sig", comment="#")
+    out = {}
+    for d in df.to_dict("records"):
+        out[str(d["의회코드"]).strip()] = dict(
+            log_pop=math.log(float(d["인구"])), fin_indep=float(d["재정자립도"]),
+            aging=float(d["고령인구비율"]), log_inc=math.log(float(d["1인당지역총소득"])))
+    return out
+
+
+def make_rows(mentions, docs, assemblies, T, horizon=None, active=None, is_ord=None, ext=None):
     D = pd.Timedelta
     first_all = mentions.groupby(["issue_id", "assembly"]).date.min().reset_index()
     f = first_all[first_all.date <= T]
@@ -87,6 +103,8 @@ def make_rows(mentions, docs, assemblies, T, horizon=None, active=None, is_ord=N
                        _n_obs=n_obs, _n90=n90, _nbrs=nb_obs, _nbrs_recent=nb_rec, _recent=r,
                        _sims=[b for s, b in sims[:2] if s > 0], _age=(T - first_date).days,
                        _asm_new=int(newly.get(a, 0)), _asm_vol=int(vol.get(a, 0)))
+            if ext:
+                row.update(ext.get(a, {}))
             if horizon is not None:
                 row["y"] = int((iid, a) in pos)
             rows.append(row)
@@ -108,7 +126,8 @@ def _score(y, p):
                 precision_at_top10pct=float(np.asarray(y)[top].mean()), pos_rate=float(np.mean(y)), n=int(len(y)))
 
 
-def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warmup=180):
+def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warmup=180, ext=None):
+    feats = FEATS + (list(EXT_COLS) if ext else [])
     assemblies = sorted(docs.assembly.dropna().unique())
     is_ord = {} if issues is None else dict(zip(issues.issue_id, issues.source.map(lambda s: int("조례" in s))))
     d0, d1 = docs.date.min(), docs.date.max()
@@ -117,7 +136,7 @@ def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warm
     frames = []
     for T in cutoffs:
         win = docs[(docs.date > T) & (docs.date <= T + H)]
-        frames.append(make_rows(mentions, docs, assemblies, T, horizon, set(win.assembly), is_ord))
+        frames.append(make_rows(mentions, docs, assemblies, T, horizon, set(win.assembly), is_ord, ext))
     train = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
 
     metrics, model, weights = {}, None, None
@@ -127,8 +146,8 @@ def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warm
             tr, te = train[train.cutoff + H <= tf], train[train.cutoff == tf]  # 누수 방지
             if len(tr) < 500 or tr.y.nunique() < 2 or te.y.nunique() < 2:
                 continue
-            m = _new_model().fit(tr[FEATS], tr.y)
-            p = m.predict_proba(te[FEATS])[:, 1]
+            m = _new_model().fit(tr[feats], tr.y)
+            p = m.predict_proba(te[feats])[:, 1]
             sc = _score(te.y.values, p)
             o = te.is_ord.values == 1
             if o.sum() and len(set(te.y.values[o])) == 2:
@@ -144,37 +163,39 @@ def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warm
             if of:
                 metrics["ordinance_issues"] = {k: round(float(np.mean([f[k] for f in of])), 4)
                                                for k in ("roc_auc", "avg_precision", "precision_at_top10pct", "pos_rate")}
-        model = _new_model().fit(train[FEATS], train.y)
-        weights = {FEAT_KO[f]: round(float(c), 3) for f, c in zip(FEATS, model[-1].coef_[0])}
+        model = _new_model().fit(train[feats], train.y)
+        weights = {{**FEAT_KO, **EXT_COLS}[f]: round(float(c), 3) for f, c in zip(feats, model[-1].coef_[0])}
         metrics["mode"] = "logistic_regression"
         metrics["n_train"] = int(len(train))
     else:
         metrics["mode"] = "heuristic (백테스트용 양성 사례 부족 또는 데이터 기간이 짧음)"
 
-    final = make_rows(mentions, docs, assemblies, d1, is_ord=is_ord)
+    final = make_rows(mentions, docs, assemblies, d1, is_ord=is_ord, ext=ext)
     if not len(final):
         return final, metrics, weights
     if model is not None:
-        final["p"] = model.predict_proba(final[FEATS])[:, 1]
-        contrib = model[0].transform(final[FEATS]) * model[-1].coef_[0]
+        final["p"] = model.predict_proba(final[feats])[:, 1]
+        contrib = model[0].transform(final[feats]) * model[-1].coef_[0]
     else:
-        X = final[FEATS].values
+        X = final[feats].values
         z = (X - X.mean(0)) / (X.std(0) + 1e-9)
-        contrib = z * np.array([HEURISTIC_W[f] for f in FEATS])
+        contrib = z * np.array([HEURISTIC_W.get(f, 0.0) for f in feats])
         final["p"] = 1 / (1 + np.exp(-contrib.sum(1)))
-    final["reasons"] = [_reasons(r, c) for r, c in zip(final.to_dict("records"), contrib)]
+    final["reasons"] = [_reasons(r, c, feats) for r, c in zip(final.to_dict("records"), contrib)]
     # 등급은 같은 기준일 예측 전체에서의 상대 순위(상위 10% 높음, 다음 20% 보통)
     rank = final.p.rank(pct=True)
     final["tier"] = np.where(rank >= 0.9, "높음", np.where(rank >= 0.7, "보통", "낮음"))
     return final, metrics, weights
 
 
-def _reasons(r, contrib, k=3):
+def _reasons(r, contrib, feats=FEATS, k=3):
     out = []
     for j in np.argsort(-contrib):
         if len(out) >= k or contrib[j] <= 0:
             break
-        f = FEATS[j]
+        f = feats[j]
+        if f not in REASON:
+            continue  # 외부 통계 특징은 의회 고유 속성이라 이슈별 근거 문장에서는 생략
         if (f == "nbr_frac" and not r["_nbrs"]) or (f == "nbr_recent" and not r["_nbrs_recent"]) \
                 or (f in ("sim", "sim_max") and not r["_sims"]) or (f == "is_ord" and not r["is_ord"]) \
                 or (f == "log_n90" and not r["_n90"]):

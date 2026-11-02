@@ -47,6 +47,7 @@ def main():
     ap.add_argument("--exclude", default="config/exclude_issues.txt",
                     help="분석자가 검토 후 제외할 이슈 대표 명칭 목록(한 줄에 하나)")
     ap.add_argument("--merge", default="config/merge_issues.txt", help="분석자 검토 후 같은 이슈로 묶을 표현 목록")
+    ap.add_argument("--external", default="", help="시도별 외부 통계 CSV (예: external/region_stats.csv). 비우면 사용 안 함")
     ap.add_argument("--reuse", action="store_true", help="work/ 에 저장된 전처리 결과 재사용")
     a = ap.parse_args()
 
@@ -95,7 +96,11 @@ def main():
     pd.to_pickle(spread, f"{work}/spread.pkl")
     log("최초 관측·후속 흐름 분석 완료")
 
-    preds, metrics, weights = backtest_and_predict(mentions, docs, issues, horizon=a.horizon_days)
+    from src.predict import load_external
+    ext = load_external(a.external)
+    if ext:
+        log(f"외부 보조 데이터 사용: {a.external} ({len(ext)}개 시도)")
+    preds, metrics, weights = backtest_and_predict(mentions, docs, issues, horizon=a.horizon_days, ext=ext)
     log("확산 예측 완료: " + str({k: v for k, v in metrics.items() if k != "folds"}))
     pd.to_pickle((preds, metrics, weights), f"{work}/forecast.pkl")
     if len(preds):
