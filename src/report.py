@@ -1,6 +1,7 @@
 """분석 결과 -> 항목별 서술형 보고서(Markdown) + 기계가독 JSON."""
 import json
 import math
+from .spread import GRADE_KO, REF_WINDOW
 
 import pandas as pd
 
@@ -65,10 +66,10 @@ def issue_section(rank, iss, s, preds, n_pred=5, brief=False):
     L.append("")
 
     L.append("### ③ 타 지방의회 후속 논의 흐름")
-    L.append("| 순서 | 의회 | 최초 관측일 | 최초 관측 대비 | 근거 유형 |")
+    L.append("| 순서 | 의회 | 최초 관측일 | 최초 관측 대비 | 증거 등급 |")
     L.append("|---|---|---|---|---|")
     for t in s["timeline"]:
-        rel = REL_KO[t["relation"]] if not brief or t["relation"] == "origin" else "동시 대응(경로 추정 안 함)"
+        rel = _grade(t) if not brief or t["relation"] == "origin" else "동시 대응(경로 추정 안 함)"
         L.append(f"| {t['order']} | {t['assembly_name']} | {_d(t['first_date'])} | +{t['lag_days']}일 | {rel} |")
     L.append("")
     if brief:  # 동시다발형: 의회 간 경로를 해석하지 않으므로 의회별 근거 원문만 간단히 제시
@@ -78,13 +79,16 @@ def issue_section(rank, iss, s, preds, n_pred=5, brief=False):
         L.append("- 해석: 다수 의회가 짧은 기간에 동시에 논의를 시작해 의회 간 전파 경로는 추정하지 않는다.")
         L.append("")
     for t in ([] if brief else s["timeline"][1:]):
-        L.append(f"**{t['order']}. {t['assembly_name']}** ({_d(t['first_date'])}, +{t['lag_days']}일, {REL_KO[t['relation']]})")
+        L.append(f"**{t['order']}. {t['assembly_name']}** ({_d(t['first_date'])}, +{t['lag_days']}일, {_grade(t)})")
         L.append(f"- 첫 논의 근거: {_cite(t['assembly'], t['first_date'], t['minutes_name'], t['speaker'])}")
         L.append(f"  > {_q(t['snippet'])}")
         if t["relation"] == "explicit":
             for ref in t["explicit_refs"][:2]:
-                note = "" if ref["consistent"] else " ※ 참조 대상 의회의 해당 이슈 관측은 데이터상 이 시점 이후이므로, 데이터 범위 밖 선행 논의 가능성이 있다."
-                L.append(f"- 명시적 참조: {ASSEMBLY_NAME.get(ref['source'], ref['source'])} 언급 — "
+                g = ref.get("grade", "medium")
+                note = {"strong": " (도입 시점의 공식 입법 논리에서 선례로 제시)",
+                        "medium": "",
+                        "predata": " ※ 언급된 의회의 논의는 데이터 기간 안에서는 더 늦게 관측되지만, 발언이 이미 시행 중임을 진술하므로 데이터 기간 이전 선행으로 본다."}.get(g, "")
+                L.append(f"- {GRADE_KO.get(g, '명시적 참조')}: {ASSEMBLY_NAME.get(ref['source'], ref['source'])} 언급 — "
                          f"{_cite(t['assembly'], ref['date'], ref['minutes_name'], ref['speaker'])}{note}")
                 L.append(f"  > {_q(ref['snippet'], 320)}")
         elif t["relation"] == "nonspecific":
@@ -93,9 +97,12 @@ def issue_section(rank, iss, s, preds, n_pred=5, brief=False):
             L.append(f"  > {_q(ns['snippet'], 320)}")
             L.append(f"- 해석: 타 지역 사례를 의식한 논의로 보이나 출처 의회가 특정되지 않아 경로는 확정하지 않는다.")
         else:
+            for ref in t.get("post_refs", [])[:1]:
+                L.append(f"- 사후 참조(도입 {REF_WINDOW}일 이후, 경로 근거 아님): {ASSEMBLY_NAME.get(ref['source'], ref['source'])} 언급 — "
+                         f"{_cite(t['assembly'], ref['date'], ref['minutes_name'], ref['speaker'])}")
             prior = ", ".join(t["earlier"])
-            L.append(f"- 해석: 선행 관측 의회({prior})보다 늦게 등장했으나 회의록에 참조 표현이 없어 "
-                     f"시간적 선후만 확인되며, 의회 간 인과관계는 단정하지 않는다.")
+            L.append(f"- 해석: 선행 관측 의회({prior})보다 늦게 등장했으나 도입 시점 회의록에 참조 표현이 없어 "
+                     f"시간적 선후(고리 검증)만 확인되며, 의회 간 인과관계는 단정하지 않는다.")
         L.append("")
 
     L.append("### ④ 향후 확산 가능성")
@@ -139,6 +146,10 @@ def is_novel(s, d0, novelty_days=90):
     return (pd.Timestamp(s["origin"]["first_date"]) - d0).days > novelty_days
 
 
+def _grade(t):
+    return GRADE_KO.get(t.get("evidence") or t["relation"], REL_KO.get(t["relation"], t["relation"]))
+
+
 def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds, metrics, weights, top_n=15,
                  n_persistent=10, n_simul=5):
     d0 = docs.date.min()
@@ -158,7 +169,9 @@ def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds
     L.append(f"- 회의록 {len(docs):,}건, 발언 {len(utts):,}개, 광역의회 {docs.assembly.nunique()}곳")
     L.append(f"- 이슈 후보 {len(issues):,}개 중 2개 이상 의회에서 관측된 이슈를 점수화해 상위 {len(order)}개를 서술")
     L.append("- '최초 관측'은 제공 데이터 범위 내 최초 등장을 뜻하며, 데이터 이전 시점의 논의 여부는 판단하지 않는다.")
-    L.append("- 전파 경로는 (1) 명시적 참조 (2) 비특정 참조 (3) 시간적 후행으로 구분해 표기하고, (3)은 인과로 해석하지 않는다.")
+    L.append("- 후속 의회마다 인과 추론 조건(시간적 선행·대상 일치·도입 시점 근접성)에 따라 증거 등급을 표기한다: "
+             "결정적 증거(도입 시점 제안설명·검토보고에서 타 광역을 선례로 제시) > 명시적 참조 > 데이터 이전 선행 > 비특정 참조 > 시간적 후행. "
+             "시간적 후행은 선후관계만 확인된 것으로 인과로 해석하지 않는다.")
     if metrics:
         L.append(f"- 확산 예측 모델: {metrics.get('mode')} (특징 13개: 기관측 의회 수·확산 속도·인접 광역 관측·언급 추세·"
                  f"의제 유사도·대상 의회의 신규 의제 수용 성향 등)")

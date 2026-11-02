@@ -45,9 +45,9 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
         tl = []
         for t in s["timeline"]:
             refs = [dict(src=r["source"], date=_d(r["date"]), m=r["minutes_name"], sp=r["speaker"],
-                         q=_clip(r["snippet"], 300), ok=bool(r["consistent"])) for r in t["explicit_refs"][:2]]
+                         q=_clip(r["snippet"], 300), ok=bool(r["consistent"]), g=r.get("grade", "medium")) for r in t["explicit_refs"][:2]]
             ns = t.get("nonspec_ref")
-            tl.append(dict(a=t["assembly"], date=_d(t["first_date"]), lag=t["lag_days"], rel=t["relation"],
+            tl.append(dict(a=t["assembly"], date=_d(t["first_date"]), lag=t["lag_days"], rel=t["relation"], ev=t.get("evidence", t["relation"]),
                            m=t["minutes_name"], sp=t["speaker"], q=_clip(t["snippet"]), refs=refs,
                            ns=(dict(date=_d(ns["date"]), m=ns["minutes_name"], q=_clip(ns["snippet"], 300))
                                if ns else None)))

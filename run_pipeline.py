@@ -94,7 +94,7 @@ def main():
     save(mentions, f"{work}/mentions")
     log(f"이슈 언급 {len(mentions):,}건 색인")
 
-    spread = analyze_all(mentions)
+    spread = analyze_all(mentions, issues)
     pd.to_pickle(spread, f"{work}/spread.pkl")
     log("최초 관측·후속 흐름 분석 완료")
 

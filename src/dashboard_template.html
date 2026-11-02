@@ -278,6 +278,7 @@ const D = __DATA__;
 const $ = s => document.querySelector(s);
 const NS = "http://www.w3.org/2000/svg";
 const REL = {origin:"최초 관측", explicit:"명시적 참조", nonspecific:"비특정 참조", temporal:"시간적 후행"};
+const GRADE = {origin:"최초 관측", strong:"결정적 증거", medium:"명시적 참조", predata:"데이터 이전 선행", nonspecific:"비특정 참조", temporal:"시간적 후행"};
 const short = a => a;                                   // 지도·차트용 짧은 이름(서울, 경기 …)
 const full = a => D.names[a] || a;                      // 정식 의회명
 const fmtD = s => s.slice(0,4)+"."+s.slice(5,7)+"."+s.slice(8,10);
@@ -518,12 +519,12 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();const i=byI
   const tl=el("div",{class:"tl"});const LIM=6;
   const item=(t,k)=>{const it=el("div",{class:"tl-item"});const rel=i.type==="B"&&k?"temporal":t.rel;
     it.appendChild(el("div",{class:"dot "+rel},String(k+1)));const b=el("div");const h=el("div",{class:"tl-h"});
-    h.append(el("span",{class:"who"},full(t.a)),el("span",{class:"when"},k?`${fmtD(t.date)}, 최초 관측 후 ${t.lag}일`:fmtD(t.date)),el("span",{class:"tag "+rel},i.type==="B"&&k?"동시 대응":REL[t.rel]));b.appendChild(h);
+    h.append(el("span",{class:"who"},full(t.a)),el("span",{class:"when"},k?`${fmtD(t.date)}, 최초 관측 후 ${t.lag}일`:fmtD(t.date)),el("span",{class:"tag "+rel},i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel])));b.appendChild(h);
     b.appendChild(el("p",{class:"quote"},t.q));b.appendChild(el("div",{class:"src"},`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?", "+t.sp:""}`));
-    if(i.type==="A"){t.refs.forEach(f=>{const r=el("div",{class:"ref explicit"});r.append(el("div",{class:"rh"},`${full(f.src)}을(를) 직접 언급`),el("div",{class:"quote",style:"margin:0"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));
-        if(!f.ok)r.appendChild(el("div",{class:"caveat"},"언급된 의회의 해당 논의는 데이터상 이보다 늦게 관측됩니다. 데이터 기간 이전에 논의했을 수 있습니다."));b.appendChild(r);});
+    if(i.type==="A"){t.refs.forEach(f=>{const r=el("div",{class:"ref explicit"});r.append(el("div",{class:"rh"},f.g==="strong"?`${full(f.src)} 사례를 도입 근거로 제시 (제안설명·검토보고)`:`${full(f.src)}을(를) 선례로 언급`),el("div",{class:"quote",style:"margin:0"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));
+        if(f.g==="predata")r.appendChild(el("div",{class:"caveat"},"언급된 의회의 논의는 데이터에서 더 늦게 잡히지만, 발언이 이미 시행 중이라고 말하고 있어 데이터 기간(2024년) 이전에 시작된 것으로 봅니다."));b.appendChild(r);});
       if(t.rel==="nonspecific"&&t.ns){const r=el("div",{class:"ref nonspecific"});r.append(el("div",{class:"rh"},"출처를 특정하지 않은 타 지역 언급"),el("div",{class:"quote",style:"margin:0"},t.ns.q),el("div",{class:"src"},`「${t.ns.m}」, ${fmtD(t.ns.date)}`));b.appendChild(r);}
-      if(t.rel==="temporal")b.appendChild(el("div",{class:"caveat"},"다른 지역을 언급하지 않아 시간 순서만 확인됩니다."));}
+      if(t.rel==="temporal")b.appendChild(el("div",{class:"caveat"},"도입 시점에 다른 지역을 언급하지 않아 시간 순서만 확인됩니다. 인과관계는 판단하지 않습니다."));}
     it.appendChild(b);return it;};
   i.tl.slice(0,LIM).forEach((t,k)=>tl.appendChild(item(t,k)));p3.appendChild(tl);
   if(i.tl.length>LIM){const m=el("button",{class:"more"},`나머지 ${i.tl.length-LIM}개 의회 보기`);m.onclick=()=>{i.tl.slice(LIM).forEach((t,k)=>tl.appendChild(item(t,k+LIM)));m.remove();};p3.appendChild(m);}

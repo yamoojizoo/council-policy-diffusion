@@ -1,10 +1,14 @@
-"""이슈별 최초 관측, 의회 간 후속 논의 흐름, 근거 유형 판정.
+"""이슈별 최초 관측, 의회 간 후속 논의 흐름, 확산 근거의 증거 등급 판정.
 
-문제 조건: '전파·확산 흐름'은 시간적 선후관계와 명시적 상호 참조로만 추정하고,
-근거 없이 인과를 단정하지 않는다. 그래서 각 후속 의회마다 근거 유형을 셋으로 나눈다.
-  - explicit   : 회의록 원문에 특정 타 광역(지명)과 도입·사례 등 단서어가 함께 등장
-  - nonspecific: '타 시·도', '다른 지자체' 등 비특정 참조만 존재
-  - temporal   : 참조 표현 없음. 시간적 선후만 확인(인과 단정 불가)
+회의록은 관찰 자료라 인과를 증명할 수 없다. 그래서 Campbell의 인과 추론 조건(시간적 선행·공변·경쟁가설 배제)과
+과정추적의 검증 유형(Van Evera 1997; Collier 2011)에 따라, 후속 의회마다 '어디까지 주장할 수 있는가'를 등급으로 매긴다.
+  - strong     : 결정적 증거. 도입 시점의 공식 입법 논리(제안설명·검토보고)에서 먼저 다룬 타 광역을 같은 정책의 선례로 언급
+  - medium     : 명시적 참조. 도입 시점에 같은 정책의 선례로 타 광역을 언급(질의·답변 등)
+  - predata    : 데이터 이전 선행. 언급된 타 광역의 논의가 데이터 기간 안에서는 더 늦지만, 발언이 '이미/~부터' 시행을 진술
+  - nonspecific: 약한 정황. '타 시·도' 등 출처를 특정하지 않은 참조
+  - temporal   : 고리 검증만 통과. 시간적 선후만 확인(인과 단정 불가)
+도입 후 REF_WINDOW일이 지나 나온 타 광역 언급은 경로 근거가 아니라 '사후 참조(post_refs)'로 따로 둔다.
+relation 은 strong·medium·predata 를 explicit 로 묶은 3분류(explicit/nonspecific/temporal)로 유지한다.
 """
 import re
 
@@ -24,32 +28,65 @@ UPSTREAM = re.compile(r"(?:법\s?개정|법률\s?개정|개정\s?법률|시행�
                       r"교육부|국토교통부|국회에서|법이\s?시행|법\s?시행)")
 
 
-REF_WINDOW = 180
+REF_WINDOW = 180   # 도입 결정 시점 근접성: 정례회 주기(연 2회)와 예측 기간에 맞춘 값. 민감도는 기술문서 3.3 참고
+# 공식 입법 논리: 조례안 제안설명·검토보고 맥락
+FORMAL = re.compile(r"제안\s?(?:설명|이유)|대표\s?발의|검토\s?(?:보고|의견|결과)|(?:제정|개정)\s?이유|조례안의?\s?주요\s?내용")
+FORMAL_SPEAKER = re.compile(r"전문위원|입법조사관|입법정책관")
+# 데이터 이전 선행을 뒷받침하는 시점 진술
+TIME_CUE = re.compile(r"이미|부터|\d{2,4}\s?년|시행\s?중|운영\s?중|추진\s?중|하고\s?있|되고\s?있|해\s?오")
+GRADE_ORDER = ["strong", "medium", "predata", "nonspecific", "temporal"]
+GRADE_KO = {"origin": "최초 관측", "strong": "결정적 증거", "medium": "명시적 참조", "predata": "데이터 이전 선행",
+            "nonspecific": "비특정 참조", "temporal": "시간적 후행"}
 _SENT = re.compile(r"(?<=[다요까죠])[.?!]\s+|(?<=[.?!])\s+")
 # 지명 뒤에 붙으면 해당 광역의회/지자체의 정책을 가리키지 않는 경우 (대학·교육청·지역 묶음 등)
 _NOT_GOV = r"(?!\s?(?:대학|대\b|대학교|도립대|교육청|교육감|통합|권|·|ㆍ|지역|출신|방향|쪽|[을를]\s?제외|만\s?빼))"
 REF_RE = {code: re.compile(rf"(?:{rx.pattern}){_NOT_GOV}[^.?!]{{0,30}}?(?:{CUE.pattern})") for code, rx in ALIAS_RE.items()}
 
 
-def _issue_sentence(row):
-    """이슈가 언급된 문장(앞뒤 1문장 포함)만 잘라낸다."""
+def _issue_window(row):
+    """이슈가 언급된 문장과 앞뒤 1문장을 문장 목록으로 돌려준다."""
     sents = _SENT.split(row.context)
     for i, s_ in enumerate(sents):
         if row.matched and row.matched in s_:
-            return " ".join(sents[max(0, i - 1):i + 2])
-    return row.snippet
+            return sents[max(0, i - 1):i + 2]
+    return [row.snippet]
 
 
-def find_refs(row):
-    """이슈 언급 문장 주변에서 '타 광역 지명 + (30자 이내) 선행사례 단서어' 구조를 찾는다."""
-    sent, own = _issue_sentence(row), row.assembly
-    if not CUE.search(sent):
-        return [], sent
-    return [code for code, rx in REF_RE.items() if code != own and rx.search(sent)], sent
+def _on_topic(sent, topic):
+    """대상 일치: 참조 문장 자체가 이 이슈를 가리키는가. 이슈 매칭 표현이 있거나, 대표 명칭 단어의 절반 이상이 들어 있어야 한다."""
+    if topic is None:
+        return True
+    flat = re.sub(r"[\s·ㆍ]", "", sent)
+    surfaces, words = topic
+    if any(sf in flat for sf in surfaces):
+        return True
+    return bool(words) and sum(w in flat for w in words) * 2 >= len(words)
 
 
-def analyze_issue(m):
-    """m: 한 이슈의 언급 테이블(날짜순)."""
+def _joint(sent, own, src):
+    """'전남도와 광주시는 함께 추진'처럼 자기 지역과 나란히 묶인 경우는 선례 참조가 아니라 공동 추진이다."""
+    o, t = ALIAS_RE[own].pattern, ALIAS_RE[src].pattern
+    return bool(re.search(rf"(?:{o})\S{{0,3}}\s?(?:와|과|및|하고|,|·|ㆍ)\s?(?:{t})|(?:{t})\S{{0,3}}\s?(?:와|과|및|하고|,|·|ㆍ)\s?(?:{o})", sent))
+
+
+def find_refs(row, topic=None):
+    """이슈 언급 문장(앞뒤 1문장 포함) 중에서, 그 문장 자체가 이 이슈를 가리키고(대상 일치)
+    '타 광역 지명 + 30자 이내 선행사례 단서어'가 있는 문장을 찾는다.
+    대상 일치를 보지 않으면 같은 답변 속 다른 사업의 타 지역 사례가 붙는 오류가 생긴다."""
+    win, own = _issue_window(row), row.assembly
+    shown = " ".join(win)
+    found, sents = [], []
+    for sent in win:
+        if not CUE.search(sent) or not _on_topic(sent, topic):
+            continue
+        for code, rx in REF_RE.items():
+            if code != own and code not in found and rx.search(sent) and not _joint(sent, own, code):
+                found.append(code); sents.append(sent)
+    return found, shown, " ".join(sents)
+
+
+def analyze_issue(m, topic=None):
+    """m: 한 이슈의 언급 테이블(날짜순). topic: (매칭 표현 목록, 대표 명칭 단어 목록) - 대상 일치 판정용."""
     m = m.sort_values(["date", "doc_id", "utt_id"])
     firsts = m.groupby("assembly", sort=False).head(1).reset_index(drop=True)
     origin = firsts.iloc[0]
@@ -57,10 +94,22 @@ def analyze_issue(m):
 
     refs = []
     for r in m.itertuples(index=False):
-        srcs, sent = find_refs(r)
+        srcs, shown, sent = find_refs(r, topic)
         for src in srcs:
+            tgt_first = first_dates[r.assembly]
+            prior = src in first_dates and first_dates[src] <= tgt_first      # 시간적 선행(데이터로 확인)
+            near = (r.date - tgt_first).days <= REF_WINDOW                     # 도입 시점 근접성
+            formal = bool(FORMAL.search(r.context) or FORMAL_SPEAKER.search(str(r.speaker)))
+            if prior and near:
+                grade = "strong" if formal else "medium"
+            elif not prior and near and TIME_CUE.search(sent):
+                grade = "predata"
+            elif prior:
+                grade = "post"                                                 # 사후 참조: 경로 근거 아님
+            else:
+                continue                                                       # 선행 불확인 + 시점 진술 없음: 인정 안 함
             refs.append(dict(target=r.assembly, source=src, date=r.date, minutes_name=r.minutes_name,
-                             speaker=r.speaker, snippet=sent,
+                             speaker=r.speaker, snippet=shown, grade=grade, formal=formal,
                              consistent=src in first_dates and first_dates[src] <= r.date))
     refs = pd.DataFrame(refs)
     nonspec = m[m.snippet.str.contains(NONSPEC)]
@@ -71,23 +120,28 @@ def analyze_issue(m):
         a = f.assembly
         # 명시적 참조: 해당 의회가 이 이슈를 처음 다룬 시점 전후(최초 관측 후 REF_WINDOW일 이내)의 발언이고,
         # 참조한 의회가 그보다 먼저 이 이슈를 다룬 경우만 인정한다. (나중에 우연히 언급한 타 지역 사례는 제외)
-        ex = refs[(refs.target == a) & (refs.date <= f.date + pd.Timedelta(days=REF_WINDOW))
-                  & refs.source.map(lambda s_: s_ in first_dates and first_dates[s_] <= f.date)] if len(refs) else refs
-        ns = nonspec[nonspec.assembly == a]
+        mine = refs[refs.target == a] if len(refs) else refs
+        ex = mine[mine.grade != "post"] if len(mine) else mine
+        post = mine[mine.grade == "post"] if len(mine) else mine
+        if len(ex):
+            ex = ex.assign(_o=ex.grade.map(GRADE_ORDER.index)).sort_values(["_o", "date"]).drop(columns="_o")
+        ns = nonspec[(nonspec.assembly == a) & (nonspec.date <= f.date + pd.Timedelta(days=REF_WINDOW))]
         if i == 0:
-            rel = "origin"
+            rel, grade = "origin", "origin"
         elif len(ex):
-            rel = "explicit"
+            rel, grade = "explicit", ex.grade.iloc[0]
         elif len(ns):
-            rel = "nonspecific"
+            rel, grade = "nonspecific", "nonspecific"
         else:
-            rel = "temporal"
+            rel, grade = "temporal", "temporal"
         timeline.append(dict(
             order=i + 1, assembly=a, assembly_name=ASSEMBLY_NAME.get(a, a), first_date=f.date,
             minutes_name=f.minutes_name, committee=f.committee, speaker=f.speaker, snippet=f.snippet,
             lag_days=int((f.date - origin.date).days), relation=rel,
             earlier=[x for x in firsts.assembly[:i]],
+            evidence=grade,
             explicit_refs=ex.drop_duplicates("source").head(3).to_dict("records") if len(ex) else [],
+            post_refs=post.drop_duplicates("source").head(2).to_dict("records") if len(post) else [],
             nonspec_ref=(ns.iloc[0][["date", "minutes_name", "speaker", "snippet"]].to_dict() if len(ns) else None),
         ))
 
@@ -124,5 +178,11 @@ def analyze_issue(m):
     )
 
 
-def analyze_all(mentions):
-    return {int(iid): analyze_issue(g) for iid, g in mentions.groupby("issue_id")}
+def _topic(row):
+    words = [w for w in re.split(r"\s+", row["label"]) if len(w) >= 2 and w not in ("및", "지원", "활성화", "운영", "설치", "관리")]
+    return list(row["surfaces"]), words or [row["label"].replace(" ", "")]
+
+
+def analyze_all(mentions, issues=None):
+    topics = {int(r["issue_id"]): _topic(r) for r in issues.to_dict("records")} if issues is not None else {}
+    return {int(iid): analyze_issue(g, topics.get(int(iid))) for iid, g in mentions.groupby("issue_id")}
