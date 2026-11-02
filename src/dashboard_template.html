@@ -573,7 +573,7 @@ function renderModel(){const v=$("#v-model");v.replaceChildren();const m=D.metri
     if(m.ordinance_issues){const o=m.ordinance_issues;p.appendChild(el("p",{class:"hint",style:"margin:14px 0 0"},`조례로 제도화된 이슈만 보면 ROC-AUC ${o.roc_auc.toFixed(3)}, 상위 10% 적중 ${(o.precision_at_top10pct*100).toFixed(1)}%로 무작위(${(o.pos_rate*100).toFixed(1)}%)의 약 ${(o.precision_at_top10pct/o.pos_rate).toFixed(1)}배입니다.`));}
     s.appendChild(p);}
   const w=Object.entries(D.weights).sort((a,b)=>b[1]-a[1]);
-  if(w.length){const p=el("div",{class:"panel",style:"margin-top:20px"});p.append(el("h3",{},"무엇이 확산 가능성을 높이나"),el("p",{class:"hint"},"표준화 로지스틱 회귀의 계수입니다. 오른쪽(파랑)은 가능성을 높이고 왼쪽(빨강)은 낮춥니다. 특징끼리 상관이 있어 각 계수는 다른 특징을 함께 고려한 효과입니다."));
+  if(w.length){const p=el("div",{class:"panel",style:"margin-top:20px"});p.append(el("h3",{},"예측 모델이 쓰는 신호"),el("p",{class:"hint"},"예측용 표준화 로지스틱 회귀의 계수입니다. 오른쪽(파랑)은 점수를 높이고 왼쪽(빨강)은 낮춥니다. 서로 비슷한 특징(예: 평균·최대 의제 유사도)은 부호가 엇갈리며 함께 작동하므로, 막대 하나를 그 요인의 효과로 읽지 않습니다. 어떤 요인이 실제로 확산과 관련되는지는 보고서의 이론 가설 검증에서 따로 추정했습니다."));
     const W=900,rowH=30,P={l:290,r:80},H=w.length*rowH+8,mx=Math.max(...w.map(x=>Math.abs(x[1])));const X=v=>P.l+(v+mx)/(2*mx)*(W-P.l-P.r);
     const svg=sv("svg",{viewBox:`0 0 ${W} ${H}`,width:"100%",role:"img","aria-label":"특징별 계수"});svg.appendChild(sv("line",{x1:X(0),x2:X(0),y1:0,y2:H,stroke:"var(--hair)"}));
     w.forEach(([k,v],j)=>{const y=4+j*rowH;svg.appendChild(sv("text",{x:P.l-14,y:y+17,"text-anchor":"end",style:"fill:var(--ink);font-size:13px"},k));

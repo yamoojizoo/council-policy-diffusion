@@ -95,7 +95,7 @@ def issue_section(rank, iss, s, preds, n_pred=5, brief=False):
             ns = t["nonspec_ref"]
             L.append(f"- 비특정 참조('타 시·도' 등): {_cite(t['assembly'], ns['date'], ns['minutes_name'], ns['speaker'])}")
             L.append(f"  > {_q(ns['snippet'], 320)}")
-            L.append(f"- 해석: 타 지역 사례를 의식한 논의로 보이나 출처 의회가 특정되지 않아 경로는 확정하지 않는다.")
+            L.append("- 해석: 타 지역 사례를 의식한 논의로 보이나 출처 의회가 특정되지 않아 경로는 확정하지 않는다.")
         else:
             for ref in t.get("post_refs", [])[:1]:
                 L.append(f"- 사후 참조(도입 {REF_WINDOW}일 이후, 경로 근거 아님): {ASSEMBLY_NAME.get(ref['source'], ref['source'])} 언급 — "
@@ -167,7 +167,9 @@ def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds
     L.append("## 0. 분석 개요")
     L.append(f"- 데이터 범위(= 분석 기준일): {_d(docs.date.min())} ~ {_d(docs.date.max())}")
     L.append(f"- 회의록 {len(docs):,}건, 발언 {len(utts):,}개, 광역의회 {docs.assembly.nunique()}곳")
-    L.append(f"- 이슈 후보 {len(issues):,}개 중 2개 이상 의회에서 관측된 이슈를 점수화해 상위 {len(order)}개를 서술")
+    L.append(f"- 이슈 후보 {len(issues):,}개 중 3개 이상 의회에서 관측되고 계절성·지나가는 말이 아닌 이슈 {len(ranked):,}개를 점수화했다. "
+             f"그중 데이터 기간 중 새로 등장한 이슈 {len(novel):,}개에서 점진 확산형 상위 {len(order)}개와 동시다발형 {len(simul)}개를 서술하고, "
+             f"처음부터 논의되던 상시 이슈는 부록으로 둔다.")
     L.append("- '최초 관측'은 제공 데이터 범위 내 최초 등장을 뜻하며, 데이터 이전 시점의 논의 여부는 판단하지 않는다.")
     L.append("- 후속 의회마다 인과 추론 조건(시간적 선행·대상 일치·도입 시점 근접성)에 따라 증거 등급을 표기한다: "
              "결정적 증거(도입 시점 제안설명·검토보고에서 타 광역을 선례로 제시) > 명시적 참조 > 데이터 이전 선행 > 비특정 참조 > 시간적 후행. "

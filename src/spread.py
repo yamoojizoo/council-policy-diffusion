@@ -97,7 +97,7 @@ def analyze_issue(m, topic=None):
         srcs, shown, sent = find_refs(r, topic)
         for src in srcs:
             tgt_first = first_dates[r.assembly]
-            prior = src in first_dates and first_dates[src] <= tgt_first      # 시간적 선행(데이터로 확인)
+            prior = src in first_dates and first_dates[src] < tgt_first       # 시간적 선행(데이터로 확인, 같은 날은 선행 아님)
             near = (r.date - tgt_first).days <= REF_WINDOW                     # 도입 시점 근접성
             formal = bool(FORMAL.search(r.context) or FORMAL_SPEAKER.search(str(r.speaker)))
             if prior and near:

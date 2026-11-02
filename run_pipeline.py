@@ -3,7 +3,6 @@
 예) python run_pipeline.py --data_dir ./data --out_dir ./output
 """
 import argparse
-import json
 import os
 import time
 
@@ -36,8 +35,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--data_dir", default="data")
     ap.add_argument("--out_dir", default="output")
-    ap.add_argument("--embed_model", default="jhgan/ko-sroberta-multitask",
-                    help="로컬 실행 문장임베딩 모델. 빈 문자열이면 문자 n-gram TF-IDF 사용")
+    ap.add_argument("--embed_model", default="",
+                    help="선택: 이슈 병합에 쓸 로컬 문장임베딩 모델(예: jhgan/ko-sroberta-multitask, sentence-transformers 필요). "
+                         "기본값(빈 문자열)은 문자 n-gram TF-IDF이며 제출 결과는 이 설정으로 만들었다")
     ap.add_argument("--kiwi_full", action="store_true", help="모든 발언을 Kiwi로 분석(정확하지만 느림)")
     ap.add_argument("--no_kiwi", action="store_true", help="Kiwi 형태소 분석 대신 규칙 기반 명사구 추출")
     ap.add_argument("--min_df", type=int, default=8)
