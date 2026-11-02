@@ -6,6 +6,7 @@
   H3 혁신성의 일관성(Walker 1969)                   : 새 의제를 먼저 다루는 의회는 해마다 일관된다
   H4 초점사건·상위정부 계기(Kingdon 1984; Birkland 1997): 동시다발형 이슈는 사건·중앙정책 언급으로 시작된다
   H5 이슈관심주기(Downs 1972)                       : 관심은 정점 뒤 줄어들며, 사건형 이슈일수록 빨리 식는다
+  H6 Bass 확산모형(Bass 1969; Rogers 2003)          : 점진형은 모방(q), 동시다발형은 외부 영향(p)이 주도한다
 H1·H2는 예측 모델과 같은 학습 표본(이슈 x 미관측 의회 x 기준 시점)에서, 이론 구성개념마다 변수 하나만 넣은
 '이론 검증 모델'로 추정한다(변수 간 다중공선성으로 계수가 왜곡되는 것을 막기 위해). 신뢰구간은 이슈 단위 군집 부트스트랩.
 """
@@ -192,48 +193,144 @@ def h5(spread, novel, docs, follow=6, n_perm=200, seed=2026):
                 median_half_B=float(d.loc[d.B, "half"].dropna().median()) if len(b) else None)
 
 
-def run_all(train, spread, novel, docs, mentions):
+def _bass_segments(spread, i, end, M):
+    """이슈 하나의 채택 과정을 '구간마다 (이미 채택한 의회 수 n, 구간 길이 dt개월, 구간 끝 신규 채택 수 c)'로 바꾼다.
+    첫 관측 의회를 시작점(t=0)으로 하고, 데이터 마지막 날에 관찰을 끝낸다(우측 절단)."""
+    ds = sorted(pd.Timestamp(t["first_date"]) for t in spread[i]["timeline"])
+    t0 = ds[0]
+    ts = [(d - t0).days / 30.44 for d in ds]
+    out, n, prev, k = [], 1, 0.0, 1
+    while k < len(ts):
+        t, c = ts[k], 0
+        while k < len(ts) and ts[k] == t:
+            c += 1
+            k += 1
+        out.append((n, t - prev, c))
+        n, prev = n + c, t
+    out.append((n, (end - t0).days / 30.44 - prev, 0))
+    return out
+
+
+def _bass_fit(segs, M):
+    """Bass 위험률 h(n) = p + q*n/M 을 최대우도로 추정한다(아직 채택하지 않은 의회마다 같은 위험률)."""
+    from scipy.optimize import minimize
+    a = np.array([x for s in segs for x in s], dtype=float)
+    n, dt, c = a[:, 0], a[:, 1], a[:, 2]
+
+    def nll(th):
+        p, q = np.exp(th)
+        h = p + q * n / M
+        return -(np.sum(c * np.log(h)) - np.sum((M - n) * h * dt))
+    r = minimize(nll, [np.log(0.02), np.log(0.3)], method="Nelder-Mead",
+                 options=dict(xatol=1e-6, fatol=1e-9, maxiter=4000))
+    return np.exp(r.x)
+
+
+def h6(spread, novel, docs, n_boot=300, seed=2026, min_adopt=6):
+    """Bass 확산모형. 의회가 17곳뿐이라 이슈 하나로는 p·q를 따로 식별하기 어렵다(경계해가 나옴).
+    그래서 유형별로 이슈를 모아 추정하고, 이슈 단위 부트스트랩으로 신뢰구간을 구한다."""
+    M = docs.assembly.nunique()
+    end = docs.date.max()
+    rng = np.random.default_rng(seed)
+    groups = {"전체 신규 이슈": list(novel), "점진형": [i for i in novel if not spread[i]["simultaneous"]],
+              "동시다발형": [i for i in novel if spread[i]["simultaneous"]]}
+    segs = {i: _bass_segments(spread, i, end, M) for i in novel}
     res = {}
-    if train is not None and len(train):
-        res["H1_H2"] = h1_h2(train)
-    res["H3"] = h3(spread, novel, docs)
-    res["H4"] = h4(spread, novel, mentions)
-    res["H5"] = h5(spread, novel, docs)
+    for g, ids in groups.items():
+        p, q = _bass_fit([segs[i] for i in ids], M)
+        bs = np.array([_bass_fit([segs[i] for i in rng.choice(ids, len(ids))], M) for _ in range(n_boot)])
+        ratio = bs[:, 1] / bs[:, 0]
+        ci = lambda x: [round(float(np.percentile(x, 2.5)), 4), round(float(np.percentile(x, 97.5)), 4)]  # noqa: E731
+        res[g] = dict(n=len(ids), p=round(float(p), 4), q=round(float(q), 4), p_ci=ci(bs[:, 0]), q_ci=ci(bs[:, 1]),
+                      q_over_p=round(float(q / p), 2), q_over_p_ci=[round(float(np.percentile(ratio, 2.5)), 2), round(float(np.percentile(ratio, 97.5)), 2)],
+                      hazard_1=round(float(p + q / M), 4), hazard_10=round(float(p + q * 10 / M), 4))
+    # 이슈 하나씩 추정했을 때 p나 q가 0으로 붙는(식별 불가) 비율
+    single = [_bass_fit([segs[i]], M) for i in novel if len(spread[i]["timeline"]) >= min_adopt]
+    boundary = float(np.mean([min(p, q) < 1e-6 for p, q in single])) if single else None
+    res["single_issue"] = dict(n=len(single), share_boundary=round(boundary, 3) if boundary is not None else None)
+    return res
+
+
+def run_all(train, spread, novel, docs, mentions):
+    """가설마다 따로 계산한다. 표본이 너무 작아 계산할 수 없는 가설은 건너뛴다(예: 합성 시연 데이터)."""
+    jobs = {"H1_H2": (lambda: h1_h2(train)) if train is not None and len(train) else None,
+            "H3": lambda: h3(spread, novel, docs), "H4": lambda: h4(spread, novel, mentions),
+            "H5": lambda: h5(spread, novel, docs), "H6": lambda: h6(spread, novel, docs)}
+    res = {}
+    for k, f in jobs.items():
+        if f is None:
+            continue
+        try:
+            res[k] = f()
+        except Exception as e:  # noqa: BLE001
+            res[k] = None
+            res.setdefault("skipped", {})[k] = f"{type(e).__name__}: {e}"
     return res
 
 
 def _p(p):
-    return "p < 0.001" if p is not None and p < 0.001 else f"p = {p:.3f}"
+    if p is None or (isinstance(p, float) and np.isnan(p)):
+        return "검정 불가(표본 부족)"
+    return "p < 0.001" if p < 0.001 else f"p = {p:.3f}"
 
 
 def write(res, path_md, path_json):
     json.dump(res, open(path_json, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
     L = ["# 정책확산 이론 가설 검증", ""]
-    if "H1_H2" in res:
-        r = res["H1_H2"]
-        L += [f"## H1·H2 이웃 효과와 유사 지역 학습 (표본 {r['n']:,}건, 이슈 {r['n_issues']:,}개)", "",
-              "| 구성개념 | 표준화 계수 | 95% 신뢰구간 | 1 표준편차당 오즈비 | VIF |", "|---|---|---|---|---|"]
-        for t in r["table"]:
-            L.append(f"| {t['name']} | {t['coef']:+.3f} | [{t['ci'][0]:+.3f}, {t['ci'][1]:+.3f}] | {t['odds_per_sd']} | {r['vif'][t['feat']]} |")
-        L += ["", f"- 유사도 계수 - 이웃 계수 = {r['sim_minus_nbr']['mean']:+.3f} (95% 구간 {r['sim_minus_nbr']['ci']})",
-              "", "| 전국 관측 의회 수 | 인접 관측 없음 채택률 | 인접 관측 있음 채택률 |", "|---|---|---|"]
-        L += [f"| {s['band']} | {s['no']:.1%} | {s['yes']:.1%} |" for s in r["nbr_strat"]]
-        L += ["", "| 최대 의제 유사도 구간 | 채택률 |", "|---|---|"] + [f"| {s['band']} | {s['rate']:.1%} |" for s in r["sim_strat"]]
-    r = res.get("H3")
-    if r:
-        L += ["", f"## H3 혁신성의 일관성 ({r['years'][0]}년 이슈 {r['n_issues'].get(r['years'][0])}개 vs {r['years'][1]}년 이슈 {r['n_issues'].get(r['years'][1])}개)", "",
-              f"- 연도 간 선행 점수 순위 상관 ρ = {r['rho']:+.3f} ({_p(r['p'])})",
-              f"- 회의록 분량과의 상관 ρ = {r['rho_volume']:+.3f} ({_p(r['p_volume'])}), 분량 통제 후 상관 = {r['rho_partial']:+.3f} ({_p(r['p_partial'])})",
-              f"- 두 해 모두 앞선 의회: {', '.join(r['consistent_leaders'])}"]
-    r = res["H4"]
-    L += ["", f"## H4 초점사건·상위정부 계기 (점진형 {r['n_A']}개 vs 동시다발형 {r['n_B']}개, 첫 90일 언급)", "",
-          "| 지표 | 점진형 평균 | 동시다발형 평균 | 단측 검정 |", "|---|---|---|---|",
-          f"| 사건·재난 표현 비율 | {r['event']['mean_A']:.1%} | {r['event']['mean_B']:.1%} | {_p(r['event']['p'])} |",
-          f"| 법령·중앙부처 표현 비율 | {r['upstream']['mean_A']:.1%} | {r['upstream']['mean_B']:.1%} | {_p(r['upstream']['p'])} |"]
-    r = res["H5"]
-    L += ["", f"## H5 이슈관심주기 (정점 뒤 6개월 이상 관찰된 이슈 {r['n']}개, 3개월 이동평균)", "",
-          f"- 정점 후 3~6개월 관심 수준(정점 대비) 중앙값: 실제 {r['median_ratio']:.0%} vs 월 순서를 무작위로 섞은 경우 {r['median_perm']:.0%}",
-          f"- 실제가 무작위보다 낮은 이슈 {r['share_below_perm']:.0%} (부호순위 단측 검정 {_p(r['p_vs_perm'])})",
-          f"- 점진형 중앙값 {r['median_ratio_A']:.0%} vs 동시다발형 {r['median_ratio_B']:.0%} (동시다발형이 더 빨리 식는지 단측 검정 {_p(r['p_B_faster'])})",
-          f"- 정점 대비 절반까지 걸린 기간 중앙값: 점진형 {r['median_half_A']}개월, 동시다발형 {r['median_half_B']}개월"]
+    try:
+        if res.get("H1_H2"):
+            r = res["H1_H2"]
+            L += [f"## H1·H2 이웃 효과와 유사 지역 학습 (표본 {r['n']:,}건, 이슈 {r['n_issues']:,}개)", "",
+                  "| 구성개념 | 표준화 계수 | 95% 신뢰구간 | 1 표준편차당 오즈비 | VIF |", "|---|---|---|---|---|"]
+            for t in r["table"]:
+                L.append(f"| {t['name']} | {t['coef']:+.3f} | [{t['ci'][0]:+.3f}, {t['ci'][1]:+.3f}] | {t['odds_per_sd']} | {r['vif'][t['feat']]} |")
+            L += ["", f"- 유사도 계수 - 이웃 계수 = {r['sim_minus_nbr']['mean']:+.3f} (95% 구간 {r['sim_minus_nbr']['ci']})",
+                  "", "| 전국 관측 의회 수 | 인접 관측 없음 채택률 | 인접 관측 있음 채택률 |", "|---|---|---|"]
+            L += [f"| {s['band']} | {s['no']:.1%} | {s['yes']:.1%} |" for s in r["nbr_strat"]]
+            L += ["", "| 최대 의제 유사도 구간 | 채택률 |", "|---|---|"] + [f"| {s['band']} | {s['rate']:.1%} |" for s in r["sim_strat"]]
+    except Exception as e:  # noqa: BLE001
+        L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
+    try:
+        r = res.get("H3")
+        if r:
+            L += ["", f"## H3 혁신성의 일관성 ({r['years'][0]}년 이슈 {r['n_issues'].get(r['years'][0])}개 vs {r['years'][1]}년 이슈 {r['n_issues'].get(r['years'][1])}개)", "",
+                  f"- 연도 간 선행 점수 순위 상관 ρ = {r['rho']:+.3f} ({_p(r['p'])})",
+                  f"- 회의록 분량과의 상관 ρ = {r['rho_volume']:+.3f} ({_p(r['p_volume'])}), 분량 통제 후 상관 = {r['rho_partial']:+.3f} ({_p(r['p_partial'])})",
+                  f"- 두 해 모두 앞선 의회: {', '.join(r['consistent_leaders'])}"]
+    except Exception as e:  # noqa: BLE001
+        L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
+    try:
+        r = res.get("H4")
+        if r:
+          L += ["", f"## H4 초점사건·상위정부 계기 (점진형 {r['n_A']}개 vs 동시다발형 {r['n_B']}개, 첫 90일 언급)", "",
+              "| 지표 | 점진형 평균 | 동시다발형 평균 | 단측 검정 |", "|---|---|---|---|",
+              f"| 사건·재난 표현 비율 | {r['event']['mean_A']:.1%} | {r['event']['mean_B']:.1%} | {_p(r['event']['p'])} |",
+              f"| 법령·중앙부처 표현 비율 | {r['upstream']['mean_A']:.1%} | {r['upstream']['mean_B']:.1%} | {_p(r['upstream']['p'])} |"]
+    except Exception as e:  # noqa: BLE001
+        L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
+    try:
+        r = res.get("H5")
+        if r:
+          L += ["", f"## H5 이슈관심주기 (정점 뒤 6개월 이상 관찰된 이슈 {r['n']}개, 3개월 이동평균)", "",
+              f"- 정점 후 3~6개월 관심 수준(정점 대비) 중앙값: 실제 {r['median_ratio']:.0%} vs 월 순서를 무작위로 섞은 경우 {r['median_perm']:.0%}",
+              f"- 실제가 무작위보다 낮은 이슈 {r['share_below_perm']:.0%} (부호순위 단측 검정 {_p(r['p_vs_perm'])})",
+              f"- 점진형 중앙값 {r['median_ratio_A']:.0%} vs 동시다발형 {r['median_ratio_B']:.0%} (동시다발형이 더 빨리 식는지 단측 검정 {_p(r['p_B_faster'])})",
+              f"- 정점 대비 절반까지 걸린 기간 중앙값: 점진형 {r['median_half_A']}개월, 동시다발형 {r['median_half_B']}개월"]
+    except Exception as e:  # noqa: BLE001
+        L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
+    try:
+        r = res.get("H6")
+        if r:
+            L += ["", "## H6 Bass 확산모형 (위험률 = p + q × 채택 의회 비율, 월 단위, 유형별 통합 추정)", "",
+                  "| 유형 | 이슈 수 | p (외부 영향) | q (모방) | q/p | 위험률: 1곳 채택 시 → 10곳 채택 시 |", "|---|---|---|---|---|---|"]
+            for g in ("전체 신규 이슈", "점진형", "동시다발형"):
+                x = r[g]
+                L.append(f"| {g} | {x['n']} | {x['p']:.4f} [{x['p_ci'][0]:.4f}, {x['p_ci'][1]:.4f}] | {x['q']:.4f} [{x['q_ci'][0]:.4f}, {x['q_ci'][1]:.4f}] "
+                         f"| {x['q_over_p']} [{x['q_over_p_ci'][0]}, {x['q_over_p_ci'][1]}] | {x['hazard_1']:.3f} → {x['hazard_10']:.3f} |")
+            si = r["single_issue"]
+            L += ["", f"- 이슈 하나씩 추정하면 {si['n']}개 중 {si['share_boundary']:.0%}에서 p나 q가 0으로 붙어(경계해) 따로 식별되지 않는다. 그래서 유형 분류에는 쓰지 않는다."]
+    except Exception as e:  # noqa: BLE001
+        L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
+    if res.get("skipped"):
+        L += ["", "계산하지 못한 가설: " + ", ".join(f"{k} ({v})" for k, v in res["skipped"].items())]
     open(path_md, "w", encoding="utf-8").write("\n".join(L) + "\n")

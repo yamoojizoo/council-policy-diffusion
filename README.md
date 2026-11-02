@@ -13,7 +13,7 @@
 | 확산 예측 | `src/predict.py` | (이슈 × 미관측 의회)별로 기준 시점 T까지의 정보만으로 특징을 만들고, T 이후 180일 안에 처음 관측될지를 로지스틱 회귀로 학습. 시점 이동 백테스트로 검증 후 분석 기준일 시점에서 예측 |
 | 지도 데이터 | `tools/build_geo.py` → `src/korea_geo.json` | 통계청 시·도 경계(2013)를 대시보드용 SVG 경로로 경량화 (시각화 전용) |
 | 대시보드 | `src/dashboard.py` | 결과를 오프라인 인터랙티브 HTML로 시각화 (외부 라이브러리 없음, 라이트/다크 모드) |
-| 이론 가설 검증 | `src/hypotheses.py` | 정책확산 이론(Berry & Berry, Walker, Volden, Kingdon, Downs)에서 도출한 가설 H1~H5를 같은 데이터로 검정 → `output/hypotheses.md` |
+| 이론 가설 검증 | `src/hypotheses.py` | 정책확산 이론(Berry & Berry, Walker, Volden, Kingdon, Downs, Bass)에서 도출한 가설 H1~H6을 같은 데이터로 검정 → `output/hypotheses.md` |
 | 보고서 | `src/report.py` | 이슈를 **A. 점진 확산형**(시차를 두고 퍼짐 → 전파 경로 분석) / **B. 동시다발형**(절반 이상이 60일 안에 등장 → 공통 외부 계기로 해석, 경로 추정 안 함) / **부록: 상시 이슈**(데이터 첫 90일 안에 이미 존재 → 최초 등장 판단 불가)로 나눠 서술. 결산·예산·감사 시즌마다 반복되는 계절성 표현은 제외 |
 
 ### 문제 조건 대응
@@ -48,7 +48,7 @@ python run_pipeline.py --data_dir data --out_dir output
 - `output/report.md`: 항목별 서술형 보고서 (①핵심 이슈 ②최초 관측 ③후속 논의 흐름 ④향후 확산 가능성 + 해석 유의사항)
 - `output/results.json`: 위 내용의 기계가독 버전과 모델 검증 지표
 - `output/forecast_all.csv`: 모든 (이슈, 미관측 의회)의 예측 점수
-- `output/hypotheses.md`: 정책확산 이론 가설 검증 결과(이웃 효과, 혁신성 일관성, 동시다발형 계기, 이슈관심주기)
+- `output/hypotheses.md`: 정책확산 이론 가설 검증 결과(이웃 효과, 혁신성 일관성, 동시다발형 계기, 이슈관심주기, Bass 확산모형)
 - `output/issue_dictionary.json`: 이슈 사전(대표 명칭, 유사 표현, 매칭 표면형)
 - `output/work/`: 중간 산출물(발언 테이블, 언급 색인)
 
