@@ -87,6 +87,31 @@ def issue_extras(mentions, ids):
     return out
 
 
+_SEARCH_EXTRA = re.compile(r"사례|벤치마킹|처럼|타\s?시[·ㆍ]?도|다른\s?(?:시[·ㆍ]?도|지자체|지역)|전국\s?최초|특별법|법\s?개정|건의|촉구")
+
+
+def search_corpus(mentions, ids, per_asm=3, per_issue=40):
+    """대시보드 '회의록 원문 검색'용 발언 표본. 의제마다 의회별로 처음·중간·마지막 언급을 고르게 뽑는다(파일 크기 제한)."""
+    if mentions is None or not len(mentions):
+        return []
+    m = mentions[mentions.issue_id.isin(ids)].sort_values("date").drop_duplicates(["issue_id", "doc_id"])
+    out = []
+    for iid, g in m.groupby("issue_id"):
+        rows = []
+        for _, h in g.groupby("assembly"):
+            k = len(h)
+            pick = sorted({0, k // 2, k - 1})[:per_asm]
+            rows += [h.iloc[j] for j in pick]
+        rows = sorted(rows, key=lambda r: r.date)[:per_issue]
+        # 타 지역 사례·법률 대응을 말한 발언은 검색 수요가 커서 따로 더 담는다(의제당 최대 30건)
+        seen = {r.doc_id for r in rows}
+        extra = g[g.context.str.contains(_SEARCH_EXTRA) & ~g.doc_id.isin(seen)].head(30)
+        out += [[int(iid), r.assembly, _d(r.date), str(r.minutes_name), str(r.speaker or ""), _clip(r.snippet, 230)] for r in rows]
+        out += [[int(iid), r.assembly, _d(r.date), str(r.minutes_name), str(r.speaker or ""), _clip(r.context, 420)]
+                for _, r in extra.iterrows()]
+    return out
+
+
 def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None, mentions=None):
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     pred_by = {}
@@ -187,7 +212,7 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
                   n_asm=int(docs.assembly.nunique()), n_issues=int(len(issues)),
                   n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out)),
         names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, nbr={a: v["nbr"] for a, v in REGIONS.items()},
-        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"])
+        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"], texts=search_corpus(mentions, list(ranked_novel)))
 
 
 def write_dashboard(path, payload):

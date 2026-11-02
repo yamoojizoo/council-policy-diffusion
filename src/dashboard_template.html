@@ -259,8 +259,25 @@ tr.avg td{font-weight:600}
 .dsel{width:100%;border:1px solid var(--hair-2);border-radius:12px;padding:10px 12px;font:inherit;background:var(--surface);color:var(--ink);margin-bottom:12px}
 .toast{font-size:13px;color:var(--d-blue);margin-left:10px}
 @media (max-width:720px){.row.r6{grid-template-columns:minmax(0,1fr) 80px 20px}.row.r6>:nth-child(2),.row.r6>:nth-child(4),.row.r6>:nth-child(5){display:none}}
-@media (max-width:720px){.pgrid{grid-template-columns:1fr}.entry h1{font-size:32px}.pchip{display:none}}
+@media (max-width:720px){.pgrid{grid-template-columns:1fr}.entry h1{font-size:32px}.entry-in{padding-top:8vh}
+  .pchip .long{display:none}.pchip{padding:7px 11px}
+  .nav-in{gap:8px;padding:0 12px}.nav .seg{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;max-width:calc(100vw - 120px);margin:0}
+  .nav .seg::-webkit-scrollbar{display:none}.seg button{white-space:nowrap}
+  .grid2 .gap{grid-template-columns:minmax(0,1fr) 90px}
+  .panel table{display:block;overflow-x:auto;white-space:nowrap}
+  .for-head h2{font-size:30px}.block h2{font-size:26px}.detail h2{font-size:28px}
+  .stats{grid-template-columns:repeat(2,1fr)}
+  .cmaps{grid-template-columns:1fr}}
+@media (min-width:721px){.pchip .short{display:none}}
 
+.sr{padding:14px 4px;border-top:1px solid var(--hair-2);cursor:pointer;border-radius:8px}
+.sr:first-of-type{border-top:0}.sr:hover{background:var(--surface-2)}
+.sr .sh{display:flex;gap:6px 12px;flex-wrap:wrap;align-items:baseline;font-size:13px;color:var(--ink-2);margin-bottom:4px}
+.sr .sh b{color:var(--ink);font-size:14.5px}
+.sr .sq{font-size:14px;line-height:1.65}
+mark{background:color-mix(in srgb,var(--d-orange) 28%,transparent);color:inherit;border-radius:3px;padding:0 1px}
+.srbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.srbar select{border:1px solid var(--hair-2);border-radius:10px;padding:7px 10px;font:inherit;background:var(--surface);color:var(--ink)}
 .tray{margin-top:12px;background:var(--surface);border-radius:16px;padding:12px}
 .tray .tt{font-size:12.5px;color:var(--ink-3);margin-bottom:8px}
 .tray .ti{display:flex;align-items:center;gap:8px;font-size:13.5px;padding:4px 0}
@@ -330,6 +347,8 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
 <div class="view on" id="v-overview"></div>
 <div class="view" id="v-issues"><div class="explore">
   <aside class="side">
+    <div class="seg" id="qmode" role="radiogroup" aria-label="검색 대상" style="margin:0 0 10px;width:100%;display:flex">
+      <button data-m="name" aria-selected="true" style="flex:1">의제 이름</button><button data-m="text" aria-selected="false" style="flex:1">회의록 원문</button></div>
     <input class="search" id="q" placeholder="이슈 검색" aria-label="이슈 검색">
     <div class="seg" id="ftype" role="radiogroup" aria-label="이슈 유형">
       <button data-f="all" aria-selected="true">전체</button><button data-f="A" aria-selected="false">점진 확산</button><button data-f="B" aria-selected="false">동시다발</button>
@@ -384,7 +403,7 @@ const isDark=()=>root.dataset.theme==="dark";
 let view="overview";
 function go(v, opts={}){view=v;setTimeout(setHash,0);document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));
   document.querySelectorAll(".view").forEach(x=>x.classList.toggle("on",x.id==="v-"+v));
-  if(opts.issue!==undefined){sel=opts.issue;fType="all";syncType();$("#q").value="";renderList();renderDetail();}
+  if(opts.issue!==undefined){if(qmode==="text"){qmode="name";syncQmode();}sel=opts.issue;fType="all";syncType();$("#q").value="";renderList();renderDetail();}
   if(opts.asm){selAsm=opts.asm;renderAssemblies();}
   window.scrollTo({top:0,behavior:reduce?"auto":"smooth"});}
 document.querySelectorAll("#tabs button").forEach(b=>b.onclick=()=>go(b.dataset.v));
@@ -562,14 +581,38 @@ document.querySelectorAll("#ftype button").forEach(b=>b.onclick=()=>{fType=b.dat
 function filtered(){const q=$("#q").value.trim(),so=$("#sort").value,ff=$("#ffield").value;
   let a=issues.filter(i=>(fType==="all"||i.type===fType)&&(!ff||i.field===ff)&&(!q||i.label.includes(q)||i.variants.some(v=>v.includes(q))||i.tl.some(t=>full(t.a).includes(q))));
   if(so==="n_asm")a=[...a].sort((x,y)=>y.n_asm-x.n_asm);if(so==="date")a=[...a].sort((x,y)=>y.tl[0].date.localeCompare(x.tl[0].date));if(so==="n_exp")a=[...a].sort((x,y)=>y.n_exp-x.n_exp);return a;}
-function refresh(){const a=filtered();if(a.length&&!a.some(i=>i.id===sel))sel=a[0].id;renderList();renderDetail();}
+let qmode="name",srAsm="";
+const TX=(D.texts||[]).map(r=>({id:r[0],a:r[1],date:r[2],m:r[3],sp:r[4],q:r[5]}));
+function syncQmode(){document.querySelectorAll("#qmode button").forEach(b=>b.setAttribute("aria-selected",b.dataset.m===qmode));
+  $("#q").placeholder=qmode==="text"?"회의록 원문에서 찾기 (예: 벤치마킹, 조례 제정)":"이슈 검색";
+  const hide=qmode==="text"?"none":"";$("#ftype").style.display=hide;document.querySelector(".sortline").style.display=hide;$("#list").style.display=hide;if(qmode==="text")$("#tray").hidden=true;else renderTray();}
+document.querySelectorAll("#qmode button").forEach(b=>b.onclick=()=>{qmode=b.dataset.m;cmpView=false;syncQmode();refresh();});
+function highlight(text,q){const f=document.createDocumentFragment();if(!q){f.append(text);return f;}let i=0;const lo=text;
+  while(true){const k=lo.indexOf(q,i);if(k<0){f.append(text.slice(i));break;}f.append(text.slice(i,k));f.appendChild(el("mark",{},text.slice(k,k+q.length)));i=k+q.length;}return f;}
+function renderSearch(box){const q=$("#q").value.trim();const wrap=el("div",{class:"detail"});
+  wrap.append(el("div",{class:"kind"},"회의록 원문 검색"),el("h2",{},q?`'${q}'가 들어간 발언`:"회의록 원문에서 찾기"));
+  wrap.appendChild(el("p",{class:"summary"},`화면에 나온 의제 ${issues.length}개의 근거 발언 ${TX.length.toLocaleString()}건(의제마다 의회별 처음·중간·마지막 언급과, 타 지역 사례·법률 대응을 말한 발언)에서 찾습니다. 결과를 누르면 해당 의제의 확산 지도로 이동합니다.`));
+  const bar=el("div",{class:"srbar"});const sel=el("select",{"aria-label":"의회"});sel.appendChild(el("option",{value:""},"모든 의회"));
+  Object.keys(D.names).sort((x,y)=>full(x).localeCompare(full(y),"ko")).forEach(a=>{const o=el("option",{value:a},full(a));if(a===srAsm)o.selected=true;sel.appendChild(o);});
+  sel.onchange=()=>{srAsm=sel.value;renderDetail();};bar.appendChild(sel);
+  const hits=q.length<2?[]:TX.filter(r=>(!srAsm||r.a===srAsm)&&(r.q.includes(q)||r.m.includes(q)));
+  bar.appendChild(el("span",{class:"gs"},q.length<2?"두 글자 이상 입력하세요.":`${hits.length.toLocaleString()}건`+(hits.length>150?" 중 최근 150건":"")));wrap.appendChild(bar);
+  const pn=el("div",{class:"panel"});
+  if(q.length>=2&&!hits.length)pn.appendChild(el("p",{class:"hint",style:"margin:0"},"찾는 표현이 없습니다. 다른 낱말이나 더 짧은 표현으로 찾아보세요."));
+  if(q.length<2){const ex=el("div",{class:"chips"});["벤치마킹","타 시도","조례 제정","특별법","시범사업","예산 확보"].forEach(w=>{const c=el("button",{class:"chip"},w);c.onclick=()=>{$("#q").value=w;renderDetail();};ex.appendChild(c);});pn.appendChild(ex);}
+  [...hits].sort((x,y)=>y.date.localeCompare(x.date)).slice(0,150).forEach(r=>{const it=byId[r.id];const d=el("div",{class:"sr",tabindex:"0",role:"button"});
+    const h=el("div",{class:"sh"});h.append(el("b",{},it.label),el("span",{},`${full(r.a)} · ${fmtD(r.date)}`));d.appendChild(h);
+    const qq=el("div",{class:"sq"});qq.appendChild(highlight(r.q,q));d.appendChild(qq);d.appendChild(el("div",{class:"src"},`「${r.m}」${r.sp&&!r.sp.startsWith("(")&&!r.sp.includes("회의록")?", "+r.sp:""}`));
+    const open=()=>{qmode="name";syncQmode();$("#q").value="";go("issues",{issue:r.id});};d.onclick=open;d.onkeydown=e=>{if(e.key==="Enter")open();};pn.appendChild(d);});
+  wrap.appendChild(pn);box.appendChild(wrap);}
+function refresh(){if(qmode==="text"){renderDetail();return;}const a=filtered();if(a.length&&!a.some(i=>i.id===sel))sel=a[0].id;renderList();renderDetail();}
 $("#q").addEventListener("input",refresh);$("#sort").addEventListener("input",refresh);
 (D.fields||[]).forEach(f=>$("#ffield").appendChild(el("option",{value:f},f)));$("#ffield").addEventListener("input",refresh);
 function renderList(){const L=$("#list");L.replaceChildren();const a=filtered();$("#count").textContent=`이슈 ${a.length}개`;
   if(!a.length){L.appendChild(el("div",{class:"li"},"검색어와 맞는 이슈가 없습니다. 다른 단어로 찾아보세요."));return;}
   a.forEach(i=>{const it=el("div",{class:"li",role:"option","aria-selected":i.id===sel,tabindex:"0"});
     it.append(el("div",{class:"lt"},i.label),el("div",{class:"ls"},`${i.type==="A"?"점진 확산":"동시다발"}, ${i.n_asm}개 의회, ${i.tl[0].a} ${i.tl[0].date.slice(0,7).replace("-",".")} 시작`));
-    const pick=()=>{sel=i.id;cmpView=false;renderList();renderDetail();setHash();};it.onclick=pick;it.onkeydown=e=>{if(e.key==="Enter")pick();};L.appendChild(it);});
+    const pick=()=>{sel=i.id;cmpView=false;renderList();renderDetail();setHash();if(innerWidth<=1100)$("#detail").scrollIntoView({behavior:reduce?"auto":"smooth"});};it.onclick=pick;it.onkeydown=e=>{if(e.key==="Enter")pick();};L.appendChild(it);});
   const s=L.querySelector('[aria-selected="true"]');if(s&&!s._seen){s.scrollIntoView({block:"nearest"});}}
 let cmp=[],cmpView=false;const CMPC=["var(--d-blue)","var(--d-orange)","var(--cmp3)"];
 function renderTray(){const t=$("#tray");t.replaceChildren();t.hidden=!cmp.length;if(!cmp.length){cmpView=false;return;}
@@ -610,7 +653,7 @@ function renderCompare(box){const list=cmp.map(id=>byId[id]);const wrap=el("div"
   const pm=el("div",{class:"panel"});pm.append(el("h3",{},"어디서 논의됐나"),el("p",{class:"hint"},"색이 진할수록 먼저 논의한 의회입니다."));const g=el("div",{class:"cmaps"});
   list.forEach((i,k)=>{const c=el("div");const h=el("h4");const w=el("i");w.style.background=CMPC[k];h.append(w,i.label);const m=geoMap({label:i.label+" 관측 지도"});m.update(issueState(i,M.d1,false));c.append(h,m.svg);g.appendChild(c);});
   pm.appendChild(g);wrap.appendChild(pm);box.appendChild(wrap);}
-function renderDetail(){const box=$("#detail");box.replaceChildren();if(cmpView&&cmp.length>1){renderCompare(box);return;}const i=byId[sel];if(!i){box.appendChild(el("p",{class:"summary"},"왼쪽에서 이슈를 고르세요."));return;}
+function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode==="text"){renderSearch(box);return;}if(cmpView&&cmp.length>1){renderCompare(box);return;}const i=byId[sel];if(!i){box.appendChild(el("p",{class:"summary"},"왼쪽에서 이슈를 고르세요."));return;}
   const wrap=el("div",{class:"detail"});const o=i.tl[0];
   wrap.appendChild(el("div",{class:"kind"},(i.type==="A"?"점진 확산형 이슈":"동시다발형 이슈")+(i.src.includes("조례")?", 조례안으로 제도화":"")+(i.field&&i.field!=="복합"?`, ${i.field} 분야`:"")));
   wrap.appendChild(el("h2",{},i.label));
@@ -901,7 +944,9 @@ function choose(k,a){persona=k;pAsm=a||null;store.set(k?{k,a:pAsm}:{k:null});clo
   if(k){renderFor();go("for");}else go("overview");}
 function syncPersona(){const tab=document.querySelector('#tabs button[data-v="for"]'),chip=$("#pchip");
   tab.hidden=!persona;chip.hidden=false;chip.replaceChildren();
-  if(persona){chip.append("목적: ",el("b",{},PERSONAS[persona].tag+(pAsm?` · ${pAsm}`:"")));}else chip.append("목적 고르기");}
+  if(persona){chip.append(el("span",{class:"long"},"목적: "),el("b",{class:"long"},PERSONAS[persona].tag+(pAsm?` · ${pAsm}`:"")),el("span",{class:"short"},"목적"));}
+  else chip.append(el("span",{class:"long"},"목적 고르기"),el("span",{class:"short"},"목적"));
+  chip.setAttribute("aria-label",persona?`이용 목적: ${PERSONAS[persona].tag}. 눌러서 바꾸기`:"이용 목적 고르기");}
 $("#pchip").onclick=()=>openEntry();
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#entry").classList.contains("on"))choose(persona,pAsm);});
 
