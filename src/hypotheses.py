@@ -193,61 +193,155 @@ def h5(spread, novel, docs, follow=6, n_perm=200, seed=2026):
                 median_half_B=float(d.loc[d.B, "half"].dropna().median()) if len(b) else None)
 
 
-def _bass_segments(spread, i, end, M):
+def _bass_segments(spread, i, end, M, start=0.0):
     """이슈 하나의 채택 과정을 '구간마다 (이미 채택한 의회 수 n, 구간 길이 dt개월, 구간 끝 신규 채택 수 c)'로 바꾼다.
-    첫 관측 의회를 시작점(t=0)으로 하고, 데이터 마지막 날에 관찰을 끝낸다(우측 절단)."""
+    첫 관측 의회를 t=0으로 하고 start개월 이후부터 데이터 마지막 날까지 본다(우측 절단)."""
     ds = sorted(pd.Timestamp(t["first_date"]) for t in spread[i]["timeline"])
     t0 = ds[0]
     ts = [(d - t0).days / 30.44 for d in ds]
-    out, n, prev, k = [], 1, 0.0, 1
-    while k < len(ts):
-        t, c = ts[k], 0
-        while k < len(ts) and ts[k] == t:
+    T = (end - t0).days / 30.44
+    n = sum(1 for t in ts if t <= start)
+    later = [t for t in ts if start < t <= T]
+    out, prev, k = [], start, 0
+    while k < len(later):
+        t, c = later[k], 0
+        while k < len(later) and later[k] == t:
             c += 1
             k += 1
         out.append((n, t - prev, c))
         n, prev = n + c, t
-    out.append((n, (end - t0).days / 30.44 - prev, 0))
+    if T > prev:
+        out.append((n, T - prev, 0))
     return out
+
+
+def _ll(p, q, a, M):
+    n, dt, c = a[:, 0], a[:, 1], a[:, 2]
+    h = p + q * n / M
+    return float(np.sum(c * np.log(h)) - np.sum((M - n) * h * dt))
 
 
 def _bass_fit(segs, M):
     """Bass 위험률 h(n) = p + q*n/M 을 최대우도로 추정한다(아직 채택하지 않은 의회마다 같은 위험률)."""
     from scipy.optimize import minimize
     a = np.array([x for s in segs for x in s], dtype=float)
-    n, dt, c = a[:, 0], a[:, 1], a[:, 2]
-
-    def nll(th):
-        p, q = np.exp(th)
-        h = p + q * n / M
-        return -(np.sum(c * np.log(h)) - np.sum((M - n) * h * dt))
-    r = minimize(nll, [np.log(0.02), np.log(0.3)], method="Nelder-Mead",
-                 options=dict(xatol=1e-6, fatol=1e-9, maxiter=4000))
+    r = minimize(lambda th: -_ll(*np.exp(th), a, M), [np.log(0.02), np.log(0.1)], method="Nelder-Mead",
+                 options=dict(xatol=1e-7, fatol=1e-10, maxiter=5000))
     return np.exp(r.x)
 
 
-def h6(spread, novel, docs, n_boot=300, seed=2026, min_adopt=6):
+def _bass_hier(segs_list, z, tau, M):
+    """이슈별 p_i, q_i 를 함께 추정하는 Bass 모형.
+    log p_i = a0 + a1*z_i + u_i,  log q_i = b0 + b1*z_i + v_i,  u_i, v_i ~ N(0, tau^2)  (tau=0이면 이슈별 편차 없음)
+    z_i: 이슈의 공변량(첫 90일 법령·중앙부처 표현 비율, 표준화). 최대사후추정(벌점 우도) + 해석적 기울기."""
+    from scipy.optimize import minimize
+    rows = [(k, *x) for k, sg in enumerate(segs_list) for x in sg]
+    D = np.array(rows, dtype=float)
+    K = len(segs_list)
+    ix, n, dt, c = D[:, 0].astype(int), D[:, 1], D[:, 2], D[:, 3]
+    f, R, Z = n / M, M - n, np.asarray(z, dtype=float)
+
+    def obj(th):
+        a0, a1, b0, b1 = th[:4]
+        u, v = th[4:4 + K], th[4 + K:]
+        pi, qi = np.exp(a0 + a1 * Z + u), np.exp(b0 + b1 * Z + v)
+        p, q = pi[ix], qi[ix]
+        h = p + q * f
+        ll = np.sum(c * np.log(h)) - np.sum(R * h * dt)
+        ga = np.bincount(ix, (c / h - R * dt) * p, K)
+        gb = np.bincount(ix, (c / h - R * dt) * f * q, K)
+        if tau > 0:
+            pen = (u @ u + v @ v) / (2 * tau * tau)
+            gu, gv = ga - u / tau ** 2, gb - v / tau ** 2
+        else:
+            pen, gu, gv = 0.0, np.zeros(K), np.zeros(K)
+        g = np.concatenate([[ga.sum(), ga @ Z, gb.sum(), gb @ Z], gu, gv])
+        return -(ll - pen), -g
+    th0 = np.concatenate([[np.log(0.02), 0, np.log(0.07), 0], np.zeros(2 * K)])
+    r = minimize(obj, th0, jac=True, method="L-BFGS-B", options=dict(maxiter=5000))
+    a0, a1, b0, b1 = r.x[:4]
+    u, v = r.x[4:4 + K], r.x[4 + K:]
+    return dict(a0=a0, a1=a1, b0=b0, b1=b1, p=np.exp(a0 + a1 * Z + u), q=np.exp(b0 + b1 * Z + v))
+
+
+def _upstream_share(mentions, ids, window=90):
+    out = {}
+    for i, g in mentions[mentions.issue_id.isin(ids)].groupby("issue_id"):
+        early = g[g.date <= g.date.min() + pd.Timedelta(days=window)]
+        out[i] = float(early.context.astype(str).str.contains(UPSTREAM).mean())
+    return out
+
+
+def h6(spread, novel, docs, mentions=None, n_boot=300, seed=2026, min_adopt=6, taus=(0, 0.25, 0.5, 1.0, 2.0)):
     """Bass 확산모형. 의회가 17곳뿐이라 이슈 하나로는 p·q를 따로 식별하기 어렵다(경계해가 나옴).
-    그래서 유형별로 이슈를 모아 추정하고, 이슈 단위 부트스트랩으로 신뢰구간을 구한다."""
+    (1) 유형별로 이슈를 모아 추정한다(이슈 단위 부트스트랩 신뢰구간).
+    (2) 순환성 점검: 동시다발형 정의(첫 60일)와 무관한 기준으로 다시 본다.
+        - 타이밍을 쓰지 않는 텍스트 기준(첫 90일 법령·중앙부처 표현 비율 상위 25%)으로 나눈 집단
+        - 정의 구간(첫 60일)을 빼고 그 이후 채택만으로 추정(표본 분할)
+    (3) 이슈별 식별: 공변량 Bass(텍스트 지표가 p·q를 움직이는지)와 부분 풀링(이슈별 편차의 크기를
+        최근 180일을 떼어 둔 예측 우도로 선택)을 시험한다."""
+    from sklearn.metrics import roc_auc_score
     M = docs.assembly.nunique()
     end = docs.date.max()
     rng = np.random.default_rng(seed)
-    groups = {"전체 신규 이슈": list(novel), "점진형": [i for i in novel if not spread[i]["simultaneous"]],
-              "동시다발형": [i for i in novel if spread[i]["simultaneous"]]}
+    ci = lambda x: [round(float(np.percentile(x, 2.5)), 4), round(float(np.percentile(x, 97.5)), 4)]  # noqa: E731
+
+    def pooled(ids, start=0.0):
+        sg = {i: _bass_segments(spread, i, end, M, start) for i in ids}
+        p, q = _bass_fit([sg[i] for i in ids], M)
+        bs = np.array([_bass_fit([sg[i] for i in rng.choice(ids, len(ids))], M) for _ in range(n_boot)])
+        ratio = bs[:, 1] / np.maximum(bs[:, 0], 1e-12)
+        return dict(n=len(ids), p=round(float(p), 4), q=round(float(q), 4), p_ci=ci(bs[:, 0]), q_ci=ci(bs[:, 1]),
+                    q_over_p=round(float(q / max(p, 1e-12)), 2) if p > 1e-6 else None,
+                    q_over_p_ci=[round(float(np.percentile(ratio, 2.5)), 2), round(float(np.percentile(ratio, 97.5)), 2)],
+                    hazard_1=round(float(p + q / M), 4), hazard_10=round(float(p + q * 10 / M), 4))
+
+    A = [i for i in novel if not spread[i]["simultaneous"]]
+    B = [i for i in novel if spread[i]["simultaneous"]]
+    res = {"전체 신규 이슈": pooled(list(novel)), "점진형": pooled(A), "동시다발형": pooled(B)}
     segs = {i: _bass_segments(spread, i, end, M) for i in novel}
-    res = {}
-    for g, ids in groups.items():
-        p, q = _bass_fit([segs[i] for i in ids], M)
-        bs = np.array([_bass_fit([segs[i] for i in rng.choice(ids, len(ids))], M) for _ in range(n_boot)])
-        ratio = bs[:, 1] / bs[:, 0]
-        ci = lambda x: [round(float(np.percentile(x, 2.5)), 4), round(float(np.percentile(x, 97.5)), 4)]  # noqa: E731
-        res[g] = dict(n=len(ids), p=round(float(p), 4), q=round(float(q), 4), p_ci=ci(bs[:, 0]), q_ci=ci(bs[:, 1]),
-                      q_over_p=round(float(q / p), 2), q_over_p_ci=[round(float(np.percentile(ratio, 2.5)), 2), round(float(np.percentile(ratio, 97.5)), 2)],
-                      hazard_1=round(float(p + q / M), 4), hazard_10=round(float(p + q * 10 / M), 4))
-    # 이슈 하나씩 추정했을 때 p나 q가 0으로 붙는(식별 불가) 비율
     single = [_bass_fit([segs[i]], M) for i in novel if len(spread[i]["timeline"]) >= min_adopt]
-    boundary = float(np.mean([min(p, q) < 1e-6 for p, q in single])) if single else None
-    res["single_issue"] = dict(n=len(single), share_boundary=round(boundary, 3) if boundary is not None else None)
+    res["single_issue"] = dict(n=len(single), share_boundary=round(float(np.mean([min(p, q) < 1e-6 for p, q in single])), 3)
+                               if single else None)
+    if mentions is None:
+        return res
+    # (2) 순환성 점검
+    up = _upstream_share(mentions, novel)
+    cut = float(np.percentile([up.get(i, 0.0) for i in novel], 75))
+    hi = [i for i in novel if up.get(i, 0.0) >= cut]
+    lo = [i for i in novel if up.get(i, 0.0) < cut]
+    res["text_groups"] = dict(cut=round(cut, 3), high=pooled(hi), low=pooled(lo))
+    s60 = 60 / 30.44
+    res["after60"] = dict(점진형=pooled(A, s60), 동시다발형=pooled(B, s60))
+    # (3) 공변량 Bass와 부분 풀링
+    ids = list(novel)
+    zr = np.array([up.get(i, 0.0) for i in ids])
+    zs = (zr - zr.mean()) / (zr.std() or 1.0)
+    full = [segs[i] for i in ids]
+    cov = _bass_hier(full, zs, 0, M)
+    bs = []
+    for _ in range(n_boot):
+        k = rng.integers(0, len(ids), len(ids))
+        r = _bass_hier([full[j] for j in k], zs[k], 0, M)
+        bs.append((r["a1"], r["b1"]))
+    bs = np.array(bs)
+    bflag = np.array([spread[i]["simultaneous"] for i in ids])
+    ext = -np.log(cov["q"] / cov["p"])
+    res["covariate"] = dict(a1=round(float(cov["a1"]), 3), a1_ci=ci(bs[:, 0]), b1=round(float(cov["b1"]), 3), b1_ci=ci(bs[:, 1]),
+                            auc_vs_rule=round(float(roc_auc_score(bflag, ext)), 3) if 0 < bflag.sum() < len(bflag) else None)
+    cutd = end - pd.Timedelta(days=180)
+    tr = [i for i in ids if pd.Timestamp(spread[i]["timeline"][0]["first_date"]) < cutd]
+    trz = np.array([zs[ids.index(i)] for i in tr])
+    tr_segs = [_bass_segments(spread, i, cutd, M) for i in tr]
+    hold = [np.array(_bass_segments(spread, i, end, M, (cutd - pd.Timestamp(spread[i]["timeline"][0]["first_date"])).days / 30.44), dtype=float)
+            for i in tr]
+    cv = []
+    for tau in taus:
+        r = _bass_hier(tr_segs, trz, tau, M)
+        cv.append(dict(tau=tau, heldout_ll=round(sum(_ll(r["p"][k], r["q"][k], h, M) for k, h in enumerate(hold) if len(h)), 1)))
+    best = max(cv, key=lambda x: x["heldout_ll"])
+    rb = _bass_hier(full, zs, best["tau"], M)
+    res["partial_pooling"] = dict(cv=cv, best_tau=best["tau"], share_q_collapsed=round(float(np.mean(rb["q"] < 1e-4)), 3))
     return res
 
 
@@ -255,7 +349,7 @@ def run_all(train, spread, novel, docs, mentions):
     """가설마다 따로 계산한다. 표본이 너무 작아 계산할 수 없는 가설은 건너뛴다(예: 합성 시연 데이터)."""
     jobs = {"H1_H2": (lambda: h1_h2(train)) if train is not None and len(train) else None,
             "H3": lambda: h3(spread, novel, docs), "H4": lambda: h4(spread, novel, mentions),
-            "H5": lambda: h5(spread, novel, docs), "H6": lambda: h6(spread, novel, docs)}
+            "H5": lambda: h5(spread, novel, docs), "H6": lambda: h6(spread, novel, docs, mentions)}
     res = {}
     for k, f in jobs.items():
         if f is None:
@@ -328,7 +422,22 @@ def write(res, path_md, path_json):
                 L.append(f"| {g} | {x['n']} | {x['p']:.4f} [{x['p_ci'][0]:.4f}, {x['p_ci'][1]:.4f}] | {x['q']:.4f} [{x['q_ci'][0]:.4f}, {x['q_ci'][1]:.4f}] "
                          f"| {x['q_over_p']} [{x['q_over_p_ci'][0]}, {x['q_over_p_ci'][1]}] | {x['hazard_1']:.3f} → {x['hazard_10']:.3f} |")
             si = r["single_issue"]
-            L += ["", f"- 이슈 하나씩 추정하면 {si['n']}개 중 {si['share_boundary']:.0%}에서 p나 q가 0으로 붙어(경계해) 따로 식별되지 않는다. 그래서 유형 분류에는 쓰지 않는다."]
+            L += ["", f"- 이슈 하나씩 추정하면 {si['n']}개 중 {si['share_boundary']:.0%}에서 p나 q가 0으로 붙어(경계해) 따로 식별되지 않는다."]
+            if r.get("text_groups"):
+                tg, a6 = r["text_groups"], r["after60"]
+                row = lambda g, x: (f"| {g} | {x['n']} | {x['p']:.4f} [{x['p_ci'][0]:.4f}, {x['p_ci'][1]:.4f}] | "  # noqa: E731
+                                    f"{x['q']:.4f} [{x['q_ci'][0]:.4f}, {x['q_ci'][1]:.4f}] |")
+                L += ["", "### 순환성 점검 (동시다발형 정의와 무관한 기준)", "", "| 집단 | 이슈 수 | p | q |", "|---|---|---|---|",
+                      row(f"텍스트 기준: 법령·중앙부처 표현 비율 상위 25% (≥{tg['cut']:.1%})", tg["high"]),
+                      row("텍스트 기준: 나머지", tg["low"]),
+                      row("표본 분할: 점진형, 첫 60일 이후 채택만", a6["점진형"]),
+                      row("표본 분할: 동시다발형, 첫 60일 이후 채택만", a6["동시다발형"])]
+                cv, pp = r["covariate"], r["partial_pooling"]
+                L += ["", "### 이슈별 식별",
+                      f"- 공변량 Bass: 법령·중앙부처 표현 비율 1 표준편차당 log p 변화 {cv['a1']:+.3f} {cv['a1_ci']}, log q 변화 {cv['b1']:+.3f} {cv['b1_ci']}. "
+                      f"이 모형으로 계산한 이슈별 외부 영향 우세도와 동시다발형 규칙의 일치도 AUC {cv['auc_vs_rule']}",
+                      "- 부분 풀링(이슈별 편차 크기 tau를 최근 180일 예측 우도로 선택): " + ", ".join(f"tau={c['tau']}: {c['heldout_ll']}" for c in pp["cv"])
+                      + f" → tau={pp['best_tau']} 선택. 이때도 이슈별 q가 0으로 붙는 비율 {pp['share_q_collapsed']:.0%}"]
     except Exception as e:  # noqa: BLE001
         L += ["", f"(표본이 부족해 이 가설 결과를 쓰지 못함: {type(e).__name__})"]
     if res.get("skipped"):
