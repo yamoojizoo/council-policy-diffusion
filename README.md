@@ -60,6 +60,8 @@ python run_pipeline.py --data_dir data_synth --out_dir output_synth --embed_mode
 ```
 확산 패턴을 미리 심어 둔 가짜 회의록으로 이슈 4개, 최초 관측 의회, 명시적 참조 경로, 동시 대응 표시가 복원되는지 확인한다. **실제 분석 결과가 아니다.**
 
+단위 테스트: `python -m pytest tests -q` (증거 등급 규칙, 이슈 사전 보정, 법률 대응 탐지, 예측 특징의 미래 정보 차단, Bass 추정 검증)
+
 ## 3. 사용한 외부 모델·자료
 
 | 명칭 | 버전 | 용도 | 적용 범위 |

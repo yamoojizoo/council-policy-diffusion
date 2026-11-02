@@ -426,6 +426,7 @@ python run_pipeline.py --data_dir data --out_dir output
 | `output/hypotheses.md`, `.json` | 정책확산 이론 가설 검증 결과(4.2) |
 | `output/issue_dictionary.json` | 이슈 사전(대표 명칭, 유사 표현, 매칭 표현) |
 
+- **단위 테스트**: `python -m pytest tests -q` (11개, 2초). 증거 등급 규칙(결정적 증거·명시적 참조·같은 날 관측·사후 참조·대상 불일치·공동 추진), 조각 표현 제거, 의제 시작일 규칙, 법률 대응 탐지, 예측 특징의 미래 정보 차단, Bass 추정량의 모수 복원을 확인한다.
 - **재현 확인용 스모크 테스트**: `python tests/make_synthetic.py data_synth && python run_pipeline.py --data_dir data_synth --out_dir output_synth --embed_model ""`
   확산 패턴을 미리 심어 둔 가짜 회의록으로 실행해 정상 동작을 확인한다.
 

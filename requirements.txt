@@ -7,3 +7,4 @@ kiwipiepy==0.24.1    # 한국어 형태소 분석기 (로컬 실행)
 pyahocorasick>=2.0   # 다수 이슈 표현 동시 탐색. 없으면 정규식으로 자동 대체(느림)
 pyarrow>=15          # 선택: 중간 결과 parquet 저장. 없으면 pickle
 # sentence-transformers>=3.0  # 선택(기본 미사용): --embed_model 지정 시에만 필요. 제출 결과는 문자 n-gram TF-IDF로 생성
+# pytest>=8  # 선택: 단위 테스트 실행용
