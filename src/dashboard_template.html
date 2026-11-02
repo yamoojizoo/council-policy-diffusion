@@ -261,6 +261,30 @@ tr.avg td{font-weight:600}
 @media (max-width:720px){.row.r6{grid-template-columns:minmax(0,1fr) 80px 20px}.row.r6>:nth-child(2),.row.r6>:nth-child(4),.row.r6>:nth-child(5){display:none}}
 @media (max-width:720px){.pgrid{grid-template-columns:1fr}.entry h1{font-size:32px}.pchip{display:none}}
 
+.dact{display:flex;gap:8px;flex-wrap:wrap;margin:-4px 0 20px}
+.dact button{border:1px solid var(--hair-2);background:var(--surface);border-radius:999px;padding:7px 14px;font-size:13.5px;cursor:pointer;color:var(--ink)}
+.dact button:hover{border-color:var(--accent);color:var(--accent)}
+#print{display:none}
+@media print{
+  @page{size:A4;margin:11mm 12mm}
+  html,body{background:#fff!important}
+  .nav,main,footer,.entry,#tip{display:none!important}
+  #print{display:block;color:#111;font-size:10pt;line-height:1.45}
+  #print h1{font-size:19pt;letter-spacing:-0.02em;margin:0 0 4pt}
+  #print .pk{color:#555;font-size:9.5pt;margin-bottom:6pt}
+  #print .ps{margin:0 0 8pt}
+  #print .pstats{display:flex;gap:18pt;margin:6pt 0 10pt}
+  #print .pstats b{display:block;font-size:14pt}
+  #print .pstats span{font-size:8.5pt;color:#555}
+  #print .pfig{display:grid;grid-template-columns:55% 45%;gap:10pt;align-items:center;break-inside:avoid}
+  #print .pfig svg{width:100%;height:auto;max-height:52mm}
+  #print h2{font-size:11.5pt;margin:9pt 0 3pt;border-bottom:1px solid #ccc;padding-bottom:2pt;break-after:avoid}
+  #print table{font-size:8.5pt;width:100%;border-collapse:collapse}
+  #print th,#print td{border-top:1px solid #ddd;padding:1.6pt 4pt;text-align:left;vertical-align:top}
+  #print .pq{margin:4pt 0 6pt;padding-left:8pt;border-left:2pt solid #2a78d6;break-inside:avoid}
+  #print .pq .src{color:#666;font-size:8.5pt}
+  #print .pfoot{margin-top:8pt;color:#666;font-size:8pt;border-top:1px solid #ccc;padding-top:4pt}
+}
 svg text{fill:var(--ink-2);font-family:inherit;font-size:11px}
 #tip{position:fixed;pointer-events:none;background:var(--tip);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:var(--ink);
   border-radius:12px;padding:10px 12px;font-size:12.5px;box-shadow:var(--shadow);max-width:300px;display:none;z-index:50;border:1px solid var(--hair-2)}
@@ -314,6 +338,7 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
 </main>
 <footer id="foot"></footer>
 <div id="tip" role="tooltip"></div>
+<div id="print" aria-hidden="true"></div>
 
 <script>
 const D = __DATA__;
@@ -346,7 +371,7 @@ const isDark=()=>root.dataset.theme==="dark";
 
 /* ---------- navigation ---------- */
 let view="overview";
-function go(v, opts={}){view=v;document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));
+function go(v, opts={}){view=v;setTimeout(setHash,0);document.querySelectorAll("#tabs button").forEach(b=>b.setAttribute("aria-selected",b.dataset.v===v));
   document.querySelectorAll(".view").forEach(x=>x.classList.toggle("on",x.id==="v-"+v));
   if(opts.issue!==undefined){sel=opts.issue;fType="all";syncType();$("#q").value="";renderList();renderDetail();}
   if(opts.asm){selAsm=opts.asm;renderAssemblies();}
@@ -533,12 +558,14 @@ function renderList(){const L=$("#list");L.replaceChildren();const a=filtered();
   if(!a.length){L.appendChild(el("div",{class:"li"},"검색어와 맞는 이슈가 없습니다. 다른 단어로 찾아보세요."));return;}
   a.forEach(i=>{const it=el("div",{class:"li",role:"option","aria-selected":i.id===sel,tabindex:"0"});
     it.append(el("div",{class:"lt"},i.label),el("div",{class:"ls"},`${i.type==="A"?"점진 확산":"동시다발"}, ${i.n_asm}개 의회, ${i.tl[0].a} ${i.tl[0].date.slice(0,7).replace("-",".")} 시작`));
-    const pick=()=>{sel=i.id;renderList();renderDetail();};it.onclick=pick;it.onkeydown=e=>{if(e.key==="Enter")pick();};L.appendChild(it);});
+    const pick=()=>{sel=i.id;renderList();renderDetail();setHash();};it.onclick=pick;it.onkeydown=e=>{if(e.key==="Enter")pick();};L.appendChild(it);});
   const s=L.querySelector('[aria-selected="true"]');if(s&&!s._seen){s.scrollIntoView({block:"nearest"});}}
 function renderDetail(){const box=$("#detail");box.replaceChildren();const i=byId[sel];if(!i){box.appendChild(el("p",{class:"summary"},"왼쪽에서 이슈를 고르세요."));return;}
   const wrap=el("div",{class:"detail"});const o=i.tl[0];
   wrap.appendChild(el("div",{class:"kind"},(i.type==="A"?"점진 확산형 이슈":"동시다발형 이슈")+(i.src.includes("조례")?", 조례안으로 제도화":"")+(i.field&&i.field!=="복합"?`, ${i.field} 분야`:"")));
   wrap.appendChild(el("h2",{},i.label));
+  const act=el("div",{class:"dact"});const pb=el("button",{},"브리핑 인쇄·PDF 저장");pb.onclick=()=>printBrief(i);
+  const lb=el("button",{},"이 화면 링크 복사");lb.onclick=()=>copyLink(lb);act.append(pb,lb);wrap.appendChild(act);
   const sum = i.type==="A"
     ? `${full(o.a)}에서 ${fmtD(o.date)}에 처음 관측된 뒤 ${i.tl.length-1}개 의회로 논의가 이어졌습니다. `+(i.n_exp?`이 가운데 ${i.n_exp}곳은 회의록에서 다른 지역의 사례를 직접 언급했습니다. 나머지는 시간 순서만 확인되므로 영향 관계로 단정하지 않습니다.`:`회의록에서 다른 지역을 직접 언급한 경우는 없어, 시간 순서만 확인되며 영향 관계로 단정하지 않습니다.`)
     : `${fmtD(o.date)} 무렵 여러 의회가 짧은 기간 안에 함께 다루기 시작했습니다. 공통의 외부 계기에 반응한 것으로 보고, 의회 사이의 전달 경로는 추정하지 않습니다.`;
@@ -587,7 +614,7 @@ function renderAssemblies(){const v=$("#v-assemblies");v.replaceChildren();
   const wrap=el("div",{class:"asm-wrap",style:"padding-top:0"});const inno=Object.fromEntries(D.innovation.map((d,k)=>[d.a,{...d,rank:k+1}]));
   const scores=D.innovation.map(d=>d.score),lo=Math.min(...scores),hi=Math.max(...scores);
   const left=el("div",{class:"panel"});
-  const gm=geoMap({label:"의회 선택 지도",onClick:a=>{selAsm=a;renderAssemblies();}});
+  const gm=geoMap({label:"의회 선택 지도",onClick:a=>{selAsm=a;renderAssemblies();setHash();}});
   gm.update(a=>{const d=inno[a]||{score:0,rank:"-",origin:0};const r=hi>lo?(hi-d.score)/(hi-lo):0;const k=Math.round(r*4);
     return {fill:`var(${STEPS[k]})`,ink:inkOn(k),sub:d.score.toFixed(2),stroke:a===selAsm?"var(--d-orange)":null,tip:[full(a),`혁신성 ${d.score.toFixed(2)}, ${d.rank}위`,`처음 다룬 이슈 ${d.origin}개`]};});
   left.appendChild(gm.svg);
@@ -943,12 +970,51 @@ function renderFor(){const v=$("#v-for");v.replaceChildren();if(!persona)return;
     s3.appendChild(nextBtns([["의회 간 선행 관계",()=>go("relations")],["예측 검증 결과",()=>go("model")],["모든 이슈",()=>go("issues")]]));v.appendChild(s3);}
 }
 
+/* ---------- 링크 공유(주소에 화면 상태 저장) ---------- */
+function setHash(){let h="";
+  if(view==="issues"&&sel!==undefined&&sel!==null)h="issue="+sel;else if(view==="assemblies")h="asm="+encodeURIComponent(selAsm);
+  else if(view==="for"&&persona)h="for="+persona+(pAsm?","+encodeURIComponent(pAsm):"");else h="v="+view;
+  try{history.replaceState(null,"","#"+h);}catch(e){}}
+function readHash(){const h=decodeURIComponent((location.hash||"").slice(1));if(!h)return false;const [k,v]=h.split("=");
+  if(k==="issue"&&byId[+v]){go("issues",{issue:+v});return true;}
+  if(k==="asm"&&D.names[v]){go("assemblies",{asm:v});return true;}
+  if(k==="for"){const [pk,pa]=(v||"").split(",");if(PERSONAS[pk]&&(pk!=="loc"||D.names[pa])){persona=pk;pAsm=pk==="loc"?pa:null;syncPersona();renderFor();go("for");return true;}}
+  if(k==="v"&&document.getElementById("v-"+v)&&v!=="for"){go(v);return true;}
+  return false;}
+function copyLink(btn){const url=location.href;const done=()=>{const t=el("span",{class:"toast"},"복사했습니다. 대시보드를 웹에 올려 두면 이 주소로 바로 이 화면이 열립니다.");btn.after(t);setTimeout(()=>t.remove(),2600);};
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(url).then(done,()=>prompt("이 주소를 복사하세요",url));else prompt("이 주소를 복사하세요",url);}
+
+/* ---------- 의제 브리핑(A4 한 장 인쇄) ---------- */
+function printBrief(i){const P=$("#print");P.replaceChildren();const prevTheme=root.dataset.theme;root.dataset.theme="light";
+  const o=i.tl[0];
+  P.append(el("div",{class:"pk"},`지방의회 정책 확산 지도 · 의제 브리핑 · 광역의회 회의록 ${fmtD(M.d0)}~${fmtD(M.d1)} 기준`),el("h1",{},i.label));
+  P.appendChild(el("div",{class:"pk"},(i.type==="A"?"점진 확산형":"동시다발형")+(i.src.includes("조례")?", 조례안으로 제도화":"")+(i.field&&i.field!=="복합"?`, ${i.field} 분야`:"")));
+  const sum=i.type==="A"?`${full(o.a)}에서 ${fmtD(o.date)}에 처음 관측된 뒤 ${i.tl.length-1}개 의회로 논의가 이어졌다. `+(i.n_exp?`이 가운데 ${i.n_exp}곳은 회의록에서 먼저 시작한 지역을 선례로 언급했다. 나머지는 시간 순서만 확인되므로 영향 관계로 단정하지 않는다.`:"회의록에서 다른 지역을 선례로 언급한 경우는 없어, 시간 순서만 확인된다.")
+    :`${fmtD(o.date)} 무렵 여러 의회가 짧은 기간 안에 함께 다루기 시작했다. 공통의 외부 계기에 반응한 것으로 보고, 의회 사이의 전달 경로는 추정하지 않는다.`;
+  P.appendChild(el("p",{class:"ps"},sum));
+  const st=el("div",{class:"pstats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.ord_asm.length}곳`,"조례안으로 다룸"],[`${i.n_exp}곳`,"선례 언급"],[`${i.law.n_asm}곳`,"법률 대응 언급"],[`${i.n_docs}건`,"관련 회의록"]]
+    .forEach(([n,t])=>{const d=el("div");d.append(el("b",{},n),el("span",{},t));st.appendChild(d);});P.appendChild(st);
+  const fig=el("div",{class:"pfig"});const gm=geoMap({label:"관측 의회 지도"});gm.update(issueState(i,M.d1,false));fig.append(gm.svg,curve(i,420,200));P.appendChild(fig);
+  P.appendChild(el("h2",{},"의회별 첫 논의"));const tb=el("table");const hr=el("tr");["순서","의회","첫 관측","근거 등급","회의록·발언자"].forEach(h=>hr.appendChild(el("th",{},h)));tb.appendChild(hr);
+  i.tl.forEach((t,k)=>{const r=el("tr");[String(k+1),full(t.a),fmtD(t.date),i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel]),`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?" "+t.sp:""}`].forEach(x=>r.appendChild(el("td",{},x)));tb.appendChild(r);});P.appendChild(tb);
+  P.appendChild(el("h2",{},"근거 원문"));
+  const q=(head,text,src)=>{const d=el("div",{class:"pq"});d.append(el("b",{},head),el("div",{},text),el("div",{class:"src"},src));P.appendChild(d);};
+  q(`최초 관측: ${full(o.a)}`,o.q,`「${o.m}」 ${fmtD(o.date)}`);
+  i.tl.forEach(t=>t.refs.slice(0,1).forEach(f=>q(`${full(t.a)}가 ${full(f.src)}를 선례로 언급 (${GRADE[f.g]||"명시적 참조"})`,f.q,`「${f.m}」 ${fmtD(f.date)}`)));
+  i.law.quotes.slice(0,2).forEach(x=>q(`법률 대응 언급: ${full(x.a)}`,x.q,`「${x.m}」 ${fmtD(x.date)}`));
+  if((i.pred||[]).length){P.appendChild(el("h2",{},"다음 6개월 확산 가능성 (상위 3곳)"));const t2=el("table");const h2=el("tr");["의회","등급","점수","주요 근거"].forEach(h=>h2.appendChild(el("th",{},h)));t2.appendChild(h2);
+    i.pred.slice(0,3).forEach(p=>{const r=el("tr");[full(p.a),p.tier,p.p.toFixed(2),(p.why||[]).slice(0,2).join(", ")].forEach(x=>r.appendChild(el("td",{},x)));t2.appendChild(r);});P.appendChild(t2);}
+  P.appendChild(el("div",{class:"pfoot"},`'첫 관측'은 제공 데이터 범위 안의 첫 등장이며 데이터 이전 논의 여부는 판단하지 않는다. 시간적 후행은 선후관계만 확인된 것으로 인과를 뜻하지 않는다. 예측 등급은 같은 기준일 전체 예측 중 상대 순위다. 상용 AI API를 쓰지 않고 로컬에서 분석했다.${location.protocol.startsWith("http")?" 화면 주소: "+location.href:""}`));
+  const restore=()=>{root.dataset.theme=prevTheme;window.removeEventListener("afterprint",restore);};window.addEventListener("afterprint",restore);
+  setTimeout(()=>window.print(),50);}
+
 function renderAll(){renderFor();renderOverview();renderList();renderDetail();renderAssemblies();renderRelations();renderFlow();renderModel();}
 {const sv0=store.get();if(sv0&&sv0.k in PERSONAS){persona=sv0.k;pAsm=sv0.a||null;if(persona==="loc"&&!pAsm)persona=null;}}
 syncPersona();
 $("#foot").textContent=`데이터: 국회도서관 광역 지방의회 회의록(${fmtD(M.d0)}~${fmtD(M.d1)}, 분석 기준일 ${fmtD(M.d1)}). '최초 관측'은 제공 데이터 범위 안에서의 첫 등장입니다. 상용 AI API를 쓰지 않고 로컬에서 분석했습니다.`;
 renderAll();
-if(persona){go("for");}else if(!store.get()){openEntry();}
+if(!readHash()){if(persona){go("for");}else if(!store.get()){openEntry();}}
+window.addEventListener("hashchange",()=>{if($("#entry").classList.contains("on"))closeEntry();readHash();});
 </script>
 </body>
 </html>
