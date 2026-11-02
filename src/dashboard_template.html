@@ -224,6 +224,34 @@ th{color:var(--ink-2);font-weight:500;border-top:0}
 td.r,th.r{text-align:right;font-variant-numeric:tabular-nums}
 tr.avg td{font-weight:600}
 
+/* entry: 목적 선택 */
+.entry{position:fixed;inset:0;z-index:40;background:var(--bg);overflow:auto;display:none}
+.entry.on{display:block}
+.entry-in{max-width:960px;margin:0 auto;padding:12vh 24px 64px}
+.entry .brand{color:var(--ink-2);font-weight:600;margin-bottom:18px}
+.entry h1{font-size:44px;line-height:1.12;letter-spacing:-0.035em;margin:0 0 14px;font-weight:700}
+.entry .lede{font-size:18px;color:var(--ink-2);margin:0 0 36px;max-width:36em}
+.pgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.pcard{border:1px solid var(--hair-2);background:var(--surface);border-radius:22px;padding:24px 24px 22px;text-align:left;cursor:pointer;transition:border-color .2s,transform .2s}
+.pcard:hover{border-color:var(--accent)}
+.pcard:active{transform:scale(.99)}
+.pcard .pt{display:block;font-size:20px;font-weight:600;letter-spacing:-0.025em;margin-bottom:4px}
+.pcard .pw{display:block;font-size:13.5px;color:var(--accent);margin-bottom:10px}
+.pcard .pd{display:block;font-size:14.5px;color:var(--ink-2);line-height:1.55}
+.entry-foot{margin-top:28px;display:flex;gap:16px;align-items:center;flex-wrap:wrap;color:var(--ink-3);font-size:13.5px}
+.agrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:10px}
+.agrid button{border:1px solid var(--hair-2);background:var(--surface);border-radius:14px;padding:14px 16px;text-align:left;cursor:pointer;font-size:15px;font-weight:500}
+.agrid button:hover{border-color:var(--accent);color:var(--accent)}
+.pchip{border:0;background:var(--fill);border-radius:999px;padding:7px 14px;font-size:13px;cursor:pointer;white-space:nowrap;color:var(--ink-2)}
+.pchip b{color:var(--ink);font-weight:600}
+.for-head{padding:56px 0 8px}
+.for-head .who{font-size:14px;color:var(--accent);margin-bottom:8px}
+.for-head h2{font-size:40px;letter-spacing:-0.035em;line-height:1.15;margin:0 0 10px;font-weight:700}
+.for-head p{font-size:17px;color:var(--ink-2);margin:0;max-width:40em}
+.nextrow{display:flex;gap:12px;flex-wrap:wrap;margin-top:20px}
+.qt{border-left:3px solid var(--d-blue);padding:2px 0 2px 14px;margin:14px 0}
+@media (max-width:720px){.pgrid{grid-template-columns:1fr}.entry h1{font-size:32px}.pchip{display:none}}
+
 svg text{fill:var(--ink-2);font-family:inherit;font-size:11px}
 #tip{position:fixed;pointer-events:none;background:var(--tip);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);color:var(--ink);
   border-radius:12px;padding:10px 12px;font-size:12.5px;box-shadow:var(--shadow);max-width:300px;display:none;z-index:50;border:1px solid var(--hair-2)}
@@ -241,6 +269,7 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
 <nav class="nav"><div class="nav-in">
   <div class="brand">지방의회 정책 확산 지도</div>
   <div class="seg" role="tablist" id="tabs">
+    <button role="tab" data-v="for" aria-selected="false" hidden>맞춤</button>
     <button role="tab" data-v="overview" aria-selected="true">개요</button>
     <button role="tab" data-v="issues" aria-selected="false">이슈</button>
     <button role="tab" data-v="assemblies" aria-selected="false">의회</button>
@@ -248,10 +277,13 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
     <button role="tab" data-v="flow" aria-selected="false">트렌드</button>
     <button role="tab" data-v="model" aria-selected="false">예측 모델</button>
   </div>
+  <button class="pchip" id="pchip" hidden></button>
   <button class="icon-btn" id="theme" aria-label="화면 밝기 전환"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
 </div></nav>
 
+<div class="entry" id="entry" role="dialog" aria-modal="true" aria-labelledby="entry-h"><div class="entry-in" id="entry-in"></div></div>
 <main>
+<div class="view" id="v-for"></div>
 <div class="view on" id="v-overview"></div>
 <div class="view" id="v-issues"><div class="explore">
   <aside class="side">
@@ -747,9 +779,112 @@ function renderFlow(){const v=$("#v-flow");v.replaceChildren();
   const ul=el("ul",{class:"led"});items.forEach(i=>{const li=el("li",{tabindex:"0"});li.append(el("span",{class:"lname"},i.label),el("span",{class:"lcount"},`${i.type==="A"?"점진 확산":"동시다발"}, ${i.n_asm}개 의회`));
     const open=()=>go("issues",{issue:i.id});li.onclick=open;li.onkeydown=e=>{if(e.key==="Enter")open();};ul.appendChild(li);});list.appendChild(ul);v.appendChild(list);}
 
-function renderAll(){renderOverview();renderList();renderDetail();renderAssemblies();renderRelations();renderFlow();renderModel();}
+/* ---------- 목적 선택과 맞춤 화면 ---------- */
+const PERSONAS={
+  nat:{t:"국회에서 입법을 검토합니다",w:"국회의원·보좌진·입법조사관",d:"여러 지역으로 번지는 의제를 찾아, 법률 차원의 기준이나 지원이 필요한지 판단할 근거를 봅니다.",tag:"국회 입법 검토"},
+  loc:{t:"지방의회에서 조례·정책을 준비합니다",w:"광역의원·정책지원관·전문위원",d:"우리 의회가 아직 다루지 않은 의제와, 다른 지역에서 먼저 논의된 회의록 원문을 찾습니다.",tag:"지방의회 정책 준비"},
+  gov:{t:"지자체·중앙부처에서 정책 동향을 살핍니다",w:"정책·기획 부서 공무원",d:"최근 새로 떠오른 의제와, 정부 정책이나 사회적 사건에 의회들이 어떻게 반응했는지 봅니다.",tag:"정책 동향 파악"},
+  res:{t:"연구하거나 취재합니다",w:"연구자·기자·시민단체",d:"확산 경로를 어떤 근거로 판단했는지, 예측이 얼마나 맞는지, 의회 사이에 어떤 순서가 있는지 봅니다.",tag:"연구·취재"}};
+let persona=null,pAsm=null;
+const store={get(){try{return JSON.parse(localStorage.getItem("cd_persona")||"null");}catch(e){return null;}},
+  set(v){try{localStorage.setItem("cd_persona",JSON.stringify(v));}catch(e){}}};
+function openEntry(step){const box=$("#entry-in");box.replaceChildren();$("#entry").classList.add("on");document.body.style.overflow="hidden";
+  box.appendChild(el("div",{class:"brand"},"지방의회 정책 확산 지도"));
+  if(step==="asm"){
+    box.appendChild(el("h1",{id:"entry-h"},"어느 의회에서 일하시나요?"));
+    box.appendChild(el("p",{class:"lede"},"고른 의회를 기준으로, 아직 다루지 않은 의제와 다른 지역의 선례를 모아 보여 드립니다."));
+    const g=el("div",{class:"agrid"});Object.keys(D.names).sort((x,y)=>full(x).localeCompare(full(y),"ko")).forEach(a=>{const b=el("button",{},full(a));b.onclick=()=>choose("loc",a);g.appendChild(b);});
+    box.appendChild(g);const f=el("div",{class:"entry-foot"});const back=el("button",{class:"btn ghost"},"이전으로");back.onclick=()=>openEntry();f.appendChild(back);box.appendChild(f);
+  }else{
+    box.appendChild(el("h1",{id:"entry-h"},"어떤 일에 쓰실 건가요?"));
+    box.appendChild(el("p",{class:"lede"},`17개 광역의회 회의록 ${M.n_docs.toLocaleString()}건에서 정책 의제가 어디서 시작해 어디로 번졌는지 추적했습니다. 목적을 고르면 그에 맞는 화면부터 보여 드립니다.`));
+    const g=el("div",{class:"pgrid"});
+    for(const k in PERSONAS){const P=PERSONAS[k];const b=el("button",{class:"pcard"});b.append(el("span",{class:"pt"},P.t),el("span",{class:"pw"},P.w),el("span",{class:"pd"},P.d));
+      b.onclick=()=>k==="loc"?openEntry("asm"):choose(k);g.appendChild(b);}
+    box.appendChild(g);
+    const f=el("div",{class:"entry-foot"});const all=el("button",{class:"btn ghost"},"목적 없이 전체 둘러보기");all.onclick=()=>choose(null);
+    f.append(all,el("span",{},"고른 뒤에도 위쪽 메뉴에서 모든 화면을 볼 수 있고, 목적은 언제든 바꿀 수 있습니다."));box.appendChild(f);}
+  const first=box.querySelector("button");if(first)first.focus();}
+function closeEntry(){$("#entry").classList.remove("on");document.body.style.overflow="";}
+function choose(k,a){persona=k;pAsm=a||null;store.set(k?{k,a:pAsm}:{k:null});closeEntry();syncPersona();
+  if(k){renderFor();go("for");}else go("overview");}
+function syncPersona(){const tab=document.querySelector('#tabs button[data-v="for"]'),chip=$("#pchip");
+  tab.hidden=!persona;chip.hidden=false;chip.replaceChildren();
+  if(persona){chip.append("목적: ",el("b",{},PERSONAS[persona].tag+(pAsm?` · ${pAsm}`:"")));}else chip.append("목적 고르기");}
+$("#pchip").onclick=()=>openEntry();
+document.addEventListener("keydown",e=>{if(e.key==="Escape"&&$("#entry").classList.contains("on"))choose(persona,pAsm);});
+
+const DAY=864e5,RECENT=new Date(new Date(M.d1).getTime()-180*DAY).toISOString().slice(0,10);
+const newIn6m=i=>i.tl.filter((t,k)=>k>0&&t.date>RECENT).length;
+const expNew=i=>(i.pred||[]).reduce((s,x)=>s+x.p,0);
+function issueRows(list,cols){const rows=el("div",{class:"rows"});
+  list.forEach(i=>{const r=el("div",{class:"row",tabindex:"0",role:"button"});
+    const c1=el("div");c1.append(el("div",{class:"nm"},i.label),el("div",{class:"sm"},`${full(i.tl[0].a)}에서 ${fmtYM(i.tl[0].date)} 처음 관측`));
+    const c2=el("div",{class:"hide-sm"});c2.appendChild(spark(i));
+    r.append(c1,c2);cols.forEach(([n,t])=>{const c=el("div");c.append(el("div",{class:"big"},n(i)),el("div",{class:"sm"},t));r.appendChild(c);});
+    r.appendChild(el("div",{class:"chev"},"›"));const open=()=>go("issues",{issue:i.id});r.onclick=open;r.onkeydown=e=>{if(e.key==="Enter")open();};rows.appendChild(r);});
+  return rows;}
+function sect(h,intro){const s=el("section",{class:"block"});s.appendChild(el("h2",{},h));if(intro)s.appendChild(el("p",{class:"intro"},intro));return s;}
+function head(v,P,title,desc){const h=el("div",{class:"for-head"});h.append(el("div",{class:"who"},P.w),el("h2",{},title),el("p",{},desc));v.appendChild(h);}
+function nextBtns(list){const r=el("div",{class:"nextrow"});list.forEach(([t,f],k)=>{const b=el("button",{class:k?"btn ghost":"btn"},t);b.onclick=f;r.appendChild(b);});return r;}
+function refQuotes(limit){const seen={},out=[];issues.forEach(i=>{if(i.type!=="A")return;i.tl.forEach(t=>t.refs.forEach(f=>{
+    const key=i.id+"|"+t.a+"|"+f.q;if(seen[key]){seen[key].srcs.push(f.src);return;}const o={i,t,f,srcs:[f.src]};seen[key]=o;out.push(o);}));});
+  out.sort((x,y)=>(y.f.g==="strong")-(x.f.g==="strong"));return out.slice(0,limit);}
+
+function renderFor(){const v=$("#v-for");v.replaceChildren();if(!persona)return;const P=PERSONAS[persona];
+  if(persona==="nat"){
+    head(v,P,"전국으로 번지는 의제와 입법 검토가 필요한 신호","지방에서 시작돼 여러 의회로 이어지는 의제는 지역마다 다른 기준을 법률로 맞출 필요가 있다는 신호일 수 있습니다. 확산 속도, 다음 확산 전망, 회의록에서 확인된 선례를 순서대로 모았습니다.");
+    const spread=[...A].sort((x,y)=>newIn6m(y)-newIn6m(x)||y.n_asm-x.n_asm).slice(0,8);
+    const s1=sect("최근 6개월 사이 새 의회로 번진 의제",`${fmtD(RECENT)} 이후 새로 논의를 시작한 의회가 많은 순서입니다.`);
+    s1.appendChild(issueRows(spread,[[i=>`+${newIn6m(i)}곳`,"최근 6개월"],[i=>`${i.n_asm}곳`,"누적 관측 의회"]]));v.appendChild(s1);
+    const fut=[...A].filter(i=>(i.pred||[]).length&&i.src.includes("조례")).sort((x,y)=>expNew(y)-expNew(x)).slice(0,8);
+    const s2=sect("조례로 제도화되며 더 넓게 번질 가능성이 큰 의제","이미 조례안으로 다뤄진 의제 가운데, 아직 다루지 않은 의회마다 계산한 앞으로 6개월의 확산 가능성을 더한 값이 큰 순서입니다. 정책 결정을 예단하지 않으며, 검토 순서를 정하는 참고용입니다.");
+    s2.appendChild(issueRows(fut,[[i=>`약 ${expNew(i).toFixed(1)}곳`,"예상 추가 의회"],[i=>`${i.n_asm}곳`,"현재 관측 의회"]]));v.appendChild(s2);
+    const s3=sect("여러 의회가 동시에 반응한 의제","정부 정책 발표나 사회적 사건에 여러 의회가 함께 반응한 의제입니다. 지방이 아니라 중앙 차원의 대응 과제일 가능성이 큽니다.");
+    const chips=el("div",{class:"chips"});B.slice(0,12).forEach(i=>{const c=el("button",{class:"chip"});c.append(el("b",{},i.label),el("span",{},`${i.n_asm}곳 · ${i.tl[0].date.slice(0,7).replace("-",".")}`));c.onclick=()=>go("issues",{issue:i.id});chips.appendChild(c);});
+    s3.appendChild(chips);v.appendChild(s3);
+    const ex=A.filter(i=>i.n_exp>0);if(ex.length){const s4=sect("회의록에서 다른 지역 선례가 직접 확인된 의제","후속 의회가 도입을 논의하면서 먼저 시작한 지역을 선례로 언급한 의제입니다. 지역 간 정책 학습이 실제로 일어났다는 근거입니다.");
+      s4.appendChild(issueRows(ex,[[i=>`${i.n_exp}곳`,"선례 언급 의회"],[i=>`${i.n_asm}곳`,"관측 의회"]]));v.appendChild(s4);}
+    v.appendChild(nextBtns([["모든 이슈 찾아보기",()=>go("issues")],["월별 급상승 순위 보기",()=>go("flow")]]));
+  }else if(persona==="loc"){const a=pAsm;
+    head(v,P,`${full(a)}의 다음 의제 찾기`,"다른 의회에서는 이미 논의했지만 이 의회에서는 아직 관측되지 않은 의제, 이 의회가 먼저 꺼낸 의제, 다른 지역 선례를 인용한 실제 발언을 모았습니다. 의제를 누르면 의회별 첫 논의 원문과 회의록 출처를 볼 수 있습니다.");
+    const s1=sect("아직 다루지 않은, 다른 지역에서 번지는 의제");s1.appendChild(gapPanel(a));v.appendChild(s1);
+    const pf=D.profiles[a]||{led:[]};const s2=sect("이 의회가 먼저 꺼낸 의제와 특화 의제");const pair=el("div",{class:"grid2",style:"align-items:start"});
+    const lp=el("div",{class:"panel"});lp.append(el("h3",{},"먼저 꺼낸 뒤 다른 의회로 이어진 의제"),el("p",{class:"hint"},"다른 의회가 참고할 수 있는 이 의회의 선행 사례입니다."));
+    const ul=el("ul",{class:"led"});if(!pf.led.length)ul.appendChild(el("li",{},"해당하는 의제가 없습니다."));
+    pf.led.forEach(x=>{const li=el("li",{tabindex:"0"});li.append(el("span",{class:"lname"},x.label),el("span",{class:"lcount"},`${x.n}개 의회로`));const open=()=>go("issues",{issue:x.id});li.onclick=open;li.onkeydown=e=>{if(e.key==="Enter")open();};ul.appendChild(li);});
+    lp.appendChild(ul);pair.append(lp,specialPanel(a));s2.appendChild(pair);v.appendChild(s2);
+    const qs=refQuotes(4);if(qs.length){const s3=sect("다른 지역 선례를 인용한 실제 발언","조례안 제안설명이나 질의에서 먼저 시행한 지역을 근거로 든 사례입니다. 발언을 준비할 때 참고할 수 있습니다.");
+      const pn=el("div",{class:"panel"});qs.forEach(({i,t,f,srcs})=>{const b=el("div",{class:"qt"});b.append(el("div",{class:"gn"},`${i.label}: ${full(t.a)}가 ${srcs.map(full).join("·")} 사례를 언급`),el("p",{class:"quote"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));
+        const o=el("button",{class:"more"},"이 의제 자세히 보기");o.onclick=()=>go("issues",{issue:i.id});b.appendChild(o);pn.appendChild(b);});s3.appendChild(pn);v.appendChild(s3);}
+    v.appendChild(nextBtns([["의회 화면에서 다른 의회와 비교",()=>go("assemblies",{asm:a})],["다른 의회 고르기",()=>openEntry("asm")]]));
+  }else if(persona==="gov"){
+    head(v,P,"최근 떠오른 의제와 의회들의 반응","데이터 마지막 6개월 동안 새로 등장한 의제와, 정부 정책·사회적 사건에 의회들이 함께 반응한 의제를 모았습니다.");
+    const rec=[...A,...B].filter(i=>i.tl[0].date>RECENT).sort((x,y)=>y.tl[0].date.localeCompare(x.tl[0].date)||y.n_asm-x.n_asm).slice(0,10);
+    const s1=sect("최근 6개월 사이 처음 등장한 의제",`${fmtD(RECENT)} 이후 처음 관측된 의제를 최근 순으로 보여 줍니다.`);
+    s1.appendChild(rec.length?issueRows(rec,[[i=>`${i.n_asm}곳`,"관측 의회"],[i=>i.type==="A"?"점진":"동시",""]]):el("p",{class:"hint"},"해당하는 의제가 없습니다."));v.appendChild(s1);
+    const s2=sect("정부 정책·사회적 사건에 함께 반응한 의제","관측 의회의 절반 이상이 60일 안에 논의를 시작한 의제입니다. 누르면 의회별로 언제, 어떤 발언으로 반응했는지 볼 수 있습니다.");
+    s2.appendChild(issueRows(B.slice(0,8),[[i=>`${i.n_asm}곳`,"반응한 의회"],[i=>fmtYM(i.tl[0].date).replace("년 ","."),"시작"]]));v.appendChild(s2);
+    v.appendChild(nextBtns([["월별 급상승 순위 보기",()=>go("flow")],["의회별 주요 의제 보기",()=>go("assemblies")]]));
+  }else if(persona==="res"){
+    head(v,P,"확산 경로를 어떻게 판단했는가","회의록은 관찰 자료라 'A를 보고 B가 도입했다'를 증명할 수 없습니다. 그래서 후속 의회마다 근거의 강도를 등급으로 나눠, 확인된 만큼만 서술했습니다.");
+    const cnt={};issues.forEach(i=>i.tl.slice(1).forEach(t=>{const g=i.type==="B"?"simul":t.ev;cnt[g]=(cnt[g]||0)+1;}));
+    const s1=sect("화면에 나온 의제의 후속 의회 근거 등급");const row=el("div",{class:"mrow"});
+    [["strong","결정적 증거","도입 시점의 제안설명·검토보고에서 먼저 시작한 지역을 선례로 제시"],["medium","명시적 참조","도입 시점의 질의·발언에서 다른 지역을 선례로 언급"],["nonspecific","비특정 참조","'타 시·도'처럼 출처를 특정하지 않은 언급"],["temporal","시간적 후행","시간 순서만 확인, 인과를 판단하지 않음"]]
+      .forEach(([k,n,t])=>{const f=el("div",{class:"fig"});f.append(el("div",{class:"n"},String(cnt[k]||0)),el("div",{class:"t"},`${n}: ${t}`));row.appendChild(f);});
+    s1.appendChild(row);s1.appendChild(el("p",{class:"hint"},`동시다발 의제의 후속 의회 ${cnt.simul||0}곳은 공통 외부 계기로 보고 경로를 추정하지 않았습니다.`));v.appendChild(s1);
+    const qs=refQuotes(3);if(qs.length){const s2=sect("선례가 확인된 사례");const pn=el("div",{class:"panel"});
+      qs.forEach(({i,t,f,srcs})=>{const b=el("div",{class:"qt"});b.append(el("div",{class:"gn"},`${i.label}: ${full(t.a)} ← ${srcs.map(full).join("·")} (${GRADE[f.g]||"명시적 참조"})`),el("p",{class:"quote"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));pn.appendChild(b);});s2.appendChild(pn);v.appendChild(s2);}
+    const s3=sect("더 볼 곳","의회 사이에 누가 대체로 먼저 다뤘는지, 예측이 과거 시점에서 얼마나 맞았는지 볼 수 있습니다. 전체 결과와 이론 가설 검증은 분석 결과 폴더의 보고서와 데이터 파일(report.md, results.json, forecast_all.csv, hypotheses.md)에 있습니다.");
+    s3.appendChild(nextBtns([["의회 간 선행 관계",()=>go("relations")],["예측 검증 결과",()=>go("model")],["모든 이슈",()=>go("issues")]]));v.appendChild(s3);}
+}
+
+function renderAll(){renderFor();renderOverview();renderList();renderDetail();renderAssemblies();renderRelations();renderFlow();renderModel();}
+{const sv0=store.get();if(sv0&&sv0.k in PERSONAS){persona=sv0.k;pAsm=sv0.a||null;if(persona==="loc"&&!pAsm)persona=null;}}
+syncPersona();
 $("#foot").textContent=`데이터: 국회도서관 광역 지방의회 회의록(${fmtD(M.d0)}~${fmtD(M.d1)}, 분석 기준일 ${fmtD(M.d1)}). '최초 관측'은 제공 데이터 범위 안에서의 첫 등장입니다. 상용 AI API를 쓰지 않고 로컬에서 분석했습니다.`;
 renderAll();
+if(persona){go("for");}else if(!store.get()){openEntry();}
 </script>
 </body>
 </html>
