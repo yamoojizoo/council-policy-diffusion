@@ -41,6 +41,7 @@ python run_pipeline.py --data_dir data --out_dir output
 | `--horizon_days` | 180 | 확산 예측 기간 |
 | `--top_n` | 15 | 보고서에 서술할 이슈 수 |
 | `--reuse` | off | 저장된 전처리 결과 재사용 |
+| `--issue_start` | `config/issue_start.txt` | 특정 사건 의제의 시작일. 그 이전의 다른 사건 언급을 제외 |
 | `--external` | (사용 안 함) | 시도별 외부 통계 CSV(`external/region_stats.csv`, KOSIS). 추가 실험용, 성능 차이 미미 |
 
 ### 출력물

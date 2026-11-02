@@ -150,8 +150,60 @@ def _grade(t):
     return GRADE_KO.get(t.get("evidence") or t["relation"], REL_KO.get(t["relation"], t["relation"]))
 
 
+def _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions):
+    """보고서 맨 앞 '핵심 요약': 분석 결과에서 자동으로 문장을 만든다(실행할 때마다 갱신)."""
+    L = ["## 핵심 요약", ""]
+    nA = sum(not spread[i]["simultaneous"] for i in novel)
+    L.append(f"1. **새로 떠오른 정책 의제 {len(novel)}개**: 데이터 기간 중 처음 등장해 3개 이상 광역의회로 이어진 의제다. "
+             f"{nA}개는 시차를 두고 번진 점진 확산형, {len(novel) - nA}개는 정부 정책·사회적 사건에 여러 의회가 동시에 반응한 동시다발형이다.")
+    if order:
+        best = max(order[:top_k(order)], key=lambda i: (("조례" in iss_map[i]["source"]), spread[i]["n_assemblies"]))
+        s0, tl = spread[best], spread[best]["timeline"]
+        months = max(1, round(tl[-1]["lag_days"] / 30))
+        L.append(f"2. **대표 확산 사례**: 「{iss_map[best]['label']}」은 {_d(tl[0]['first_date'])} {tl[0]['assembly_name']}에서 처음 관측된 뒤 "
+                 f"약 {months}개월 동안 {s0['n_assemblies']}개 광역의회로 이어졌다({' → '.join(t['assembly'] for t in tl)}).")
+    fol = [t for i in novel if not spread[i]["simultaneous"] for t in spread[i]["timeline"][1:]]
+    gc = {}
+    for t in fol:
+        gc[t.get("evidence", t["relation"])] = gc.get(t.get("evidence", t["relation"]), 0) + 1
+    k = gc.get("strong", 0) + gc.get("medium", 0) + gc.get("predata", 0)
+    line = (f"3. **확산 경로는 확인된 만큼만 주장했다**: 점진 확산형의 후속 의회 {len(fol):,}곳 가운데 도입 시점에 먼저 시작한 지역을 같은 정책의 선례로 언급한 곳은 "
+            f"{k}곳(결정적 증거 {gc.get('strong', 0)}, 명시적 참조 {gc.get('medium', 0)})이다. 나머지는 시간 선후만 확인돼 인과를 단정하지 않았다.")
+    ex = [(i, t, r) for i in novel if not spread[i]["simultaneous"] for t in spread[i]["timeline"][1:]
+          for r in t.get("explicit_refs", [])[:1] if r.get("grade") == "strong"]
+    if ex:
+        i, t, r = ex[0]
+        line += (f" 예를 들어 {t['assembly_name']}는 「{iss_map[i]['label']}」 의제를 다룬 조례안 제안설명에서 "
+                 f"{ASSEMBLY_NAME.get(r['source'], r['source'])} 등 먼저 시작한 지역의 사례를 도입 근거로 들었다({_cite(t['assembly'], r['date'], r['minutes_name'])}).")
+    L.append(line)
+    if simul:
+        h4 = (hres or {}).get("H4")
+        extra = (f" 이 유형은 첫 석 달 언급에서 법령 개정·중앙부처 표현 비율이 {h4['upstream']['mean_B']:.1%}로 점진형({h4['upstream']['mean_A']:.1%})보다 높아, "
+                 f"지방발 확산이 아니라 상위 정부 계기형임을 뒷받침한다." if h4 else "")
+        L.append(f"4. **동시다발형은 중앙 대응 과제**: {', '.join(iss_map[i]['label'] for i in simul[:4])} 등은 여러 의회가 짧은 기간에 함께 논의를 시작했다.{extra}")
+    h = (hres or {}).get("H1_H2")
+    if h:
+        tb = {t["feat"]: t for t in h["table"]}
+        h3 = (hres or {}).get("H3")
+        L.append(f"5. **무엇이 확산을 이끄나 (정책확산 이론 검증)**: 이미 다룬 의회의 비율이 1표준편차 높을수록 다음 6개월 안에 논의를 시작할 오즈가 "
+                 f"{tb['frac_obs']['odds_per_sd']}배, 새 의제를 잘 받아들이는 의회일수록 {tb['asm_new']['odds_per_sd']}배 높았다. "
+                 f"지리적으로 인접한 의회의 영향은 {tb['nbr_frac']['odds_per_sd']}배로 작았다(Berry & Berry의 전국 상호작용·내부결정요인 모형 지지)."
+                 + (f" 새 의제를 먼저 다루는 의회는 해마다 일관됐다(연도 간 순위 상관 {h3['rho']:+.2f})." if h3 else ""))
+    if metrics and "roc_auc" in metrics:
+        L.append(f"6. **다음 확산 의회 예측**: 과거 시점으로 돌아가 검증한 결과, 확산 가능성 상위 10%로 고른 의회 중 {metrics['precision_at_top10pct']:.1%}가 "
+                 f"실제로 6개월 안에 논의를 시작했다. 무작위({metrics['pos_rate']:.1%})의 약 {metrics['precision_at_top10pct'] / max(metrics['pos_rate'], 1e-9):.1f}배다.")
+    L.append("")
+    L.append("모든 판단에는 회의록명, 회의일자, 발언자, 원문 구간을 붙였다. 이론 가설 검증의 전체 결과는 `hypotheses.md`에 있다.")
+    L.append("")
+    return L
+
+
+def top_k(order):
+    return min(len(order), 5)
+
+
 def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds, metrics, weights, top_n=15,
-                 n_persistent=10, n_simul=5):
+                 n_persistent=10, n_simul=5, hres=None):
     d0 = docs.date.min()
     ranked = rank_issues(issues, spread, d0=d0)
     # 본문 서술: 데이터 기간 중 새로 등장한 이슈(최초 관측 시점을 의미 있게 특정할 수 있는 이슈)
@@ -164,6 +216,7 @@ def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     kw = assembly_keywords(mentions, issues)
     L = ["# 광역 지방의회 회의록 기반 지방정책 이슈 트렌드 분석 및 확산 흐름 예측", ""]
+    L += _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions)
     L.append("## 0. 분석 개요")
     L.append(f"- 데이터 범위(= 분석 기준일): {_d(docs.date.min())} ~ {_d(docs.date.max())}")
     L.append(f"- 회의록 {len(docs):,}건, 발언 {len(utts):,}개, 광역의회 {docs.assembly.nunique()}곳")

@@ -373,6 +373,24 @@ def index_mentions(utts, issues, snippet_w=110, context_w=320, per_doc_cap=3):
     return pd.DataFrame(rows).sort_values(["issue_id", "date", "doc_id", "utt_id"]).reset_index(drop=True)
 
 
+def apply_issue_start(mentions, issues, path):
+    """config/issue_start.txt 의 '대표 명칭: YYYY-MM-DD' 규칙으로, 특정 사건을 가리키는 의제의 사건 이전 언급을 뺀다.
+    예: '대통령 탄핵'은 2024.12.3 이후 사건을 가리키므로, 그 이전 회의록의 과거 탄핵 언급은 이 의제가 아니다."""
+    import os
+    if not path or not os.path.exists(path):
+        return mentions, 0
+    lab2id = dict(zip(issues.label, issues.issue_id))
+    drop = pd.Series(False, index=mentions.index)
+    for line in open(path, encoding="utf-8"):
+        line = line.strip()
+        if not line or line.startswith("#") or ":" not in line:
+            continue
+        lab, d = [x.strip() for x in line.rsplit(":", 1)]
+        if lab in lab2id:
+            drop |= (mentions.issue_id == lab2id[lab]) & (mentions.date < pd.Timestamp(d))
+    return mentions[~drop].reset_index(drop=True), int(drop.sum())
+
+
 def drop_fragment_surfaces(issues):
     """대표 명칭의 단어 중간에서 시작하는 조각 표현을 매칭 표현에서 뺀다.
     예: '산업위기 선제대응지역'의 '위기선제'는 '기후위기 선제적 대응'에도 걸리므로 제거한다.

@@ -47,6 +47,7 @@ def main():
     ap.add_argument("--exclude", default="config/exclude_issues.txt",
                     help="분석자가 검토 후 제외할 이슈 대표 명칭 목록(한 줄에 하나)")
     ap.add_argument("--merge", default="config/merge_issues.txt", help="분석자 검토 후 같은 이슈로 묶을 표현 목록")
+    ap.add_argument("--issue_start", default="config/issue_start.txt", help="특정 사건 의제의 시작일(그 이전의 다른 사건 언급 제외)")
     ap.add_argument("--external", default="", help="시도별 외부 통계 CSV (예: external/region_stats.csv). 비우면 사용 안 함")
     ap.add_argument("--reuse", action="store_true", help="work/ 에 저장된 전처리 결과 재사용")
     a = ap.parse_args()
@@ -91,6 +92,9 @@ def main():
     log(f"병합 후 이슈 {len(issues):,}개")
 
     mentions = I.index_mentions(utts, issues)
+    mentions, n_drop = I.apply_issue_start(mentions, issues, a.issue_start)
+    if n_drop:
+        log(f"의제 시작일 규칙({a.issue_start}) 적용: 사건 이전 언급 {n_drop}건 제외")
     save(mentions, f"{work}/mentions")
     log(f"이슈 언급 {len(mentions):,}건 색인")
 
@@ -110,17 +114,10 @@ def main():
             f"{a.out_dir}/forecast_all.csv", index=False, encoding="utf-8-sig")
 
     issues.to_json(f"{a.out_dir}/issue_dictionary.json", orient="records", force_ascii=False, indent=1)
-    order = write_report(f"{a.out_dir}/report.md", f"{a.out_dir}/results.json", docs, utts, issues, mentions,
-                         spread, preds, metrics, weights, top_n=a.top_n)
-    log(f"보고서 작성: {a.out_dir}/report.md (이슈 {len(order)}개)")
     d0 = docs.date.min()
     novel = [i for i in rank_issues(issues, spread, d0=d0) if is_novel(spread[i], d0)]
-    write_dashboard(f"{a.out_dir}/dashboard.html",
-                    build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
-                                  assembly_keywords(mentions, issues), mentions))
-    log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
-    # 정책확산 이론 가설 검증 (예측 모델과 같은 학습 표본 사용)
+    # 정책확산 이론 가설 검증 (예측 모델과 같은 학습 표본 사용). 결과는 보고서 핵심 요약에도 쓴다.
     from src import hypotheses as HY, predict as PR
     train = PR.LAST_TRAIN
     if train is None:
@@ -129,6 +126,13 @@ def main():
     HY.write(hres, f"{a.out_dir}/hypotheses.md", f"{a.out_dir}/hypotheses.json")
     log(f"이론 가설 검증: {a.out_dir}/hypotheses.md")
 
+    order = write_report(f"{a.out_dir}/report.md", f"{a.out_dir}/results.json", docs, utts, issues, mentions,
+                         spread, preds, metrics, weights, top_n=a.top_n, hres=hres)
+    log(f"보고서 작성: {a.out_dir}/report.md (이슈 {len(order)}개)")
+    write_dashboard(f"{a.out_dir}/dashboard.html",
+                    build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
+                                  assembly_keywords(mentions, issues), mentions))
+    log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
 if __name__ == "__main__":
     main()
