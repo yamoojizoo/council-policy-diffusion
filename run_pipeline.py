@@ -79,6 +79,8 @@ def main():
     cands = pd.concat([ords[ords.n_asm >= 2] if len(ords) else ords, emer], ignore_index=True)
     issues = I.merge_candidates(cands, model_name=a.embed_model or None)
     issues, n_merged = I.apply_manual_merges(issues, a.merge)
+    issues, n_frag = I.drop_fragment_surfaces(issues)
+    log(f"단어 중간 조각 매칭 표현 {n_frag}개 제거")
     if n_merged:
         log(f"병합 규칙({a.merge}) 적용: {n_merged}개 표현을 대표 이슈로 합침")
     if a.exclude and os.path.exists(a.exclude):

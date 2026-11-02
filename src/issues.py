@@ -373,6 +373,30 @@ def index_mentions(utts, issues, snippet_w=110, context_w=320, per_doc_cap=3):
     return pd.DataFrame(rows).sort_values(["issue_id", "date", "doc_id", "utt_id"]).reset_index(drop=True)
 
 
+def drop_fragment_surfaces(issues):
+    """대표 명칭의 단어 중간에서 시작하는 조각 표현을 매칭 표현에서 뺀다.
+    예: '산업위기 선제대응지역'의 '위기선제'는 '기후위기 선제적 대응'에도 걸리므로 제거한다.
+    대표 명칭의 단어 경계에서 시작하는 표현(예: '현수막사용')은 유지한다."""
+    issues = issues.copy()
+    n = 0
+    for k in issues.index:
+        label = issues.at[k, "label"]
+        flat = label.replace(" ", "")
+        starts, pos = set(), 0
+        for w in label.split():
+            starts.add(pos); pos += len(w)
+        keep = []
+        for sf in issues.at[k, "surfaces"]:
+            i = flat.find(sf)
+            if i > 0 and i not in starts:
+                n += 1
+                continue
+            keep.append(sf)
+        if keep:
+            issues.at[k, "surfaces"] = keep
+    return issues, n
+
+
 def apply_manual_merges(issues, path):
     """config/merge_issues.txt 의 '대표명: 표현, 표현' 규칙으로 이슈를 합친다."""
     import os

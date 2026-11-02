@@ -24,9 +24,10 @@ UPSTREAM = re.compile(r"(?:법\s?개정|법률\s?개정|개정\s?법률|시행�
                       r"교육부|국토교통부|국회에서|법이\s?시행|법\s?시행)")
 
 
+REF_WINDOW = 180
 _SENT = re.compile(r"(?<=[다요까죠])[.?!]\s+|(?<=[.?!])\s+")
 # 지명 뒤에 붙으면 해당 광역의회/지자체의 정책을 가리키지 않는 경우 (대학·교육청·지역 묶음 등)
-_NOT_GOV = r"(?!\s?(?:대학|대\b|대학교|도립대|교육청|교육감|통합|권|·|ㆍ|지역|출신|방향|쪽))"
+_NOT_GOV = r"(?!\s?(?:대학|대\b|대학교|도립대|교육청|교육감|통합|권|·|ㆍ|지역|출신|방향|쪽|[을를]\s?제외|만\s?빼))"
 REF_RE = {code: re.compile(rf"(?:{rx.pattern}){_NOT_GOV}[^.?!]{{0,30}}?(?:{CUE.pattern})") for code, rx in ALIAS_RE.items()}
 
 
@@ -68,7 +69,10 @@ def analyze_issue(m):
     timeline = []
     for i, f in firsts.iterrows():
         a = f.assembly
-        ex = refs[refs.target == a] if len(refs) else refs
+        # 명시적 참조: 해당 의회가 이 이슈를 처음 다룬 시점 전후(최초 관측 후 REF_WINDOW일 이내)의 발언이고,
+        # 참조한 의회가 그보다 먼저 이 이슈를 다룬 경우만 인정한다. (나중에 우연히 언급한 타 지역 사례는 제외)
+        ex = refs[(refs.target == a) & (refs.date <= f.date + pd.Timedelta(days=REF_WINDOW))
+                  & refs.source.map(lambda s_: s_ in first_dates and first_dates[s_] <= f.date)] if len(refs) else refs
         ns = nonspec[nonspec.assembly == a]
         if i == 0:
             rel = "origin"
