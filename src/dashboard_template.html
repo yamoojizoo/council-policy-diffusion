@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>지방의회 정책 확산 지도</title>
 <style>
+/*__FONT__*/
 :root{
   --bg:#f5f5f7;--surface:#ffffff;--surface-2:#fbfbfd;--fill:#f0f0f3;
   --ink:#1d1d1f;--ink-2:#6e6e73;--ink-3:#86868b;--hair:#d2d2d7;--hair-2:#e8e8ed;
@@ -23,7 +24,7 @@
   color-scheme:dark}
 *{box-sizing:border-box}
 html,body{margin:0;background:var(--bg)}
-body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Pretendard","Segoe UI","Malgun Gothic",system-ui,sans-serif;
+body{font-family:"Pretendard Embed","Pretendard",-apple-system,BlinkMacSystemFont,"SF Pro Text","Apple SD Gothic Neo","Segoe UI","Malgun Gothic",system-ui,sans-serif;
   color:var(--ink);font-size:15px;line-height:1.55;-webkit-font-smoothing:antialiased;letter-spacing:-0.01em;word-break:keep-all;overflow-wrap:break-word}
 button{font:inherit;color:inherit}
 :focus-visible{outline:3px solid color-mix(in srgb,var(--accent) 55%,transparent);outline-offset:2px;border-radius:10px}
@@ -291,6 +292,43 @@ tr.avg td{font-weight:600}
 .tour .tbar .sp{flex:1}
 .tour .tprog{height:3px;background:var(--fill);border-radius:999px;margin-top:12px;overflow:hidden}
 .tour .tprog i{display:block;height:100%;background:var(--accent);width:0}
+.evck{margin-top:10px;display:grid;gap:4px}
+.evck div{display:grid;grid-template-columns:18px minmax(0,1fr);gap:8px;font-size:13px;color:var(--ink-2);align-items:start}
+.evck .ok{color:#2f9e6e;font-weight:700}.evck .na{color:var(--ink-3)}
+.evck b{color:var(--ink);font-weight:600}
+mark.m-src{background:color-mix(in srgb,var(--d-blue) 22%,transparent)}
+mark.m-cue{background:color-mix(in srgb,var(--d-orange) 26%,transparent)}
+.evtitle{font-size:12px;color:var(--ink-3);margin-top:10px}
+.funnel{display:grid;gap:10px}
+.fn{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:4px 20px;align-items:end}
+.fn .lab{font-size:15px;color:var(--ink)}.fn .lab small{display:block;color:var(--ink-3);font-size:13px;margin-top:2px}
+.fn .num{font-size:22px;font-weight:600;text-align:right;font-variant-numeric:tabular-nums;letter-spacing:-0.02em}
+.fn .track{grid-column:1/-1;height:8px;border-radius:999px;background:var(--q0);overflow:hidden}
+.fn .track i{display:block;height:100%;border-radius:999px;background:var(--q400);transform-origin:left;transition:transform 1s cubic-bezier(.2,.7,.2,1)}
+.fn.last .track i{background:var(--d-orange)}
+.tm{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:28px;align-items:start}
+.tm-now{font-size:28px;font-weight:700;letter-spacing:-0.03em;font-variant-numeric:tabular-nums}
+.tm-sub{color:var(--ink-2);font-size:15px;margin:4px 0 16px}
+.tm-new{display:grid;gap:6px;min-height:200px}
+.tm-new button{all:unset;cursor:pointer;display:flex;justify-content:space-between;gap:12px;padding:8px 12px;border-radius:12px;background:var(--bg);font-size:14px}
+.tm-new button:hover,.tm-new button:focus-visible{background:var(--q0);outline:none}
+.tm-new button span{color:var(--ink-3);white-space:nowrap}
+.tm-leg{display:flex;gap:6px;align-items:center;font-size:12px;color:var(--ink-3);margin-top:8px}.tm-leg i{width:22px;height:10px;border-radius:3px;display:inline-block}
+@media (max-width:760px){.tm{grid-template-columns:1fr}.fn{grid-template-columns:minmax(0,1fr) 90px}.fn .num{font-size:18px}}
+.kbtn{all:unset;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-2);padding:6px 10px;border-radius:999px;background:var(--q0)}
+.kbtn kbd{font:inherit;font-size:11px;color:var(--ink-3);border:1px solid var(--hair-2);border-radius:5px;padding:0 5px}
+.kbtn:focus-visible{outline:2px solid var(--d-blue)}
+.pal{position:fixed;inset:0;z-index:80;display:none;align-items:flex-start;justify-content:center;padding:12vh 16px 0;background:color-mix(in srgb,#000 32%,transparent);backdrop-filter:blur(6px)}
+.pal.on{display:flex}
+.pal-in{width:min(640px,100%);background:var(--surface);border-radius:20px;box-shadow:0 24px 70px rgba(0,0,0,.28);overflow:hidden}
+.pal input{all:unset;box-sizing:border-box;width:100%;padding:18px 22px;font-size:18px;border-bottom:1px solid var(--hair-2)}
+.pal ul{list-style:none;margin:0;padding:8px;max-height:52vh;overflow:auto}
+.pal li{display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-radius:12px;cursor:pointer;font-size:15px}
+.pal li .k{font-size:12px;color:var(--ink-3)}.pal li .x{font-size:13px;color:var(--ink-3);white-space:nowrap}
+.pal li .t{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pal li[aria-selected="true"]{background:color-mix(in srgb,var(--d-blue) 14%,transparent)}
+.pal .ft{display:flex;gap:16px;padding:10px 22px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--hair-2)}
+@media (max-width:760px){.kbtn kbd{display:none}.kbtn .kl{display:none}.pal .ft{display:none}}
 .sr{padding:14px 4px;border-top:1px solid var(--hair-2);cursor:pointer;border-radius:8px}
 .sr:first-of-type{border-top:0}.sr:hover{background:var(--surface-2)}
 .sr .sh{display:flex;gap:6px 12px;flex-wrap:wrap;align-items:baseline;font-size:13px;color:var(--ink-2);margin-bottom:4px}
@@ -358,6 +396,7 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
     <button role="tab" data-v="flow" aria-selected="false">트렌드</button>
     <button role="tab" data-v="model" aria-selected="false">예측 모델</button>
   </div>
+  <button class="kbtn" id="kbtn" aria-label="빠른 이동 (Ctrl+K)"><svg viewBox="0 0 16 16" width="13" height="13" aria-hidden="true"><circle cx="7" cy="7" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 11l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span class="kl">빠른 이동</span><kbd>Ctrl K</kbd></button>
   <button class="pchip" id="pchip" hidden></button>
   <button class="icon-btn" id="theme" aria-label="화면 밝기 전환"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 1.5a6.5 6.5 0 0 1 0 13z" fill="currentColor"/></svg></button>
 </div></nav>
@@ -390,6 +429,9 @@ footer{max-width:1240px;margin:0 auto;padding:32px 24px 48px;color:var(--ink-3);
 <footer id="foot"></footer>
 <div id="tip" role="tooltip"></div>
 <div id="print" aria-hidden="true"></div>
+<div class="pal" id="pal" role="dialog" aria-modal="true" aria-label="빠른 이동"><div class="pal-in">
+  <input id="palq" placeholder="이슈, 의회, 화면 이름을 입력하세요" aria-label="빠른 이동 검색" autocomplete="off" role="combobox" aria-controls="pall" aria-expanded="true">
+  <ul id="pall" role="listbox"></ul><div class="ft"><span>↑↓ 고르기</span><span>Enter 열기</span><span>Esc 닫기</span></div></div></div>
 <div class="tour" id="tour" role="dialog" aria-label="둘러보기" aria-live="polite"></div>
 
 <script>
@@ -546,7 +588,53 @@ function monthly(i, W=560, H=150){
 const A = issues.filter(i=>i.type==="A"), B = issues.filter(i=>i.type==="B");
 // 대표 사례: 조례로 제도화되며 점진적으로 퍼진 이슈 중 추천 순위가 가장 높은 것
 const heroIssue = A.find(i=>i.src.includes("조례")&&i.n_asm>=10) || A[0] || issues[0];
-let heroPlayer=null;
+let heroPlayer=null,counted=false;
+// 숫자 카운트업: 첫 진입 때 한 번만. 모션 줄이기 설정이면 바로 최종값.
+function countUp(node, text){const m=String(text).match(/^([\d,]+(?:\.\d+)?)(.*)$/);if(!m||reduce)return;
+  const target=parseFloat(m[1].replace(/,/g,"")),dec=(m[1].split(".")[1]||"").length,rest=m[2],t0=performance.now(),dur=1100;
+  const fmt=x=>dec?x.toFixed(dec):Math.round(x).toLocaleString();node.textContent=fmt(0)+rest;
+  const step=now=>{const k=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-k,3);node.textContent=fmt(target*e)+rest;if(k<1)requestAnimationFrame(step);else node.textContent=text;};requestAnimationFrame(step);}
+
+// 분석 깔때기: 원자료에서 근거 문장까지 몇 개씩 남는지
+function funnelBlock(){const s=el("section",{class:"block"});s.appendChild(el("h2",{},"회의록에서 확산 근거까지"));
+  s.appendChild(el("p",{class:"intro"},"단계마다 기준을 통과한 것만 다음 단계로 넘어갑니다. 막대 길이는 로그 눈금입니다."));
+  const st=[[M.n_utts,"발언",`회의록 ${M.n_docs.toLocaleString()}건(17개 광역의회)을 발언자 단위로 나눈 문단`],[M.n_issues,"정책 이슈 후보","조례안 제목과 새로 떠오른 표현을 묶어 정리"],
+    [M.n_ranked,"여러 의회에서 이어진 이슈","3개 이상 의회에서 관측되고 계절성·지나가는 말이 아닌 것"],[A.length+B.length,"기간 중 새로 등장한 이슈","확산 순서를 추적하는 대상"],
+    [M.n_ev,"다른 지역을 근거로 든 도입","제안설명·발언에서 앞선 의회 사례를 직접 언급"]].filter(x=>x[0]!=null);
+  const mx=Math.log10(st[0][0]+1),f=el("div",{class:"funnel panel"});
+  st.forEach(([n,l,x],k)=>{const r=el("div",{class:"fn"+(k===st.length-1?" last":"")});const lab=el("div",{class:"lab"},l);lab.appendChild(el("small",{},x));
+    const num=el("div",{class:"num"},n.toLocaleString());const tr=el("div",{class:"track"});const bar=el("i");bar.style.transform=`scaleX(${reduce?Math.log10(n+1)/mx:0})`;tr.appendChild(bar);r.append(lab,num,tr);f.appendChild(r);
+    if(!reduce)requestAnimationFrame(()=>requestAnimationFrame(()=>{bar.style.transitionDelay=(k*90)+"ms";bar.style.transform=`scaleX(${Math.max(.02,Math.log10(n+1)/mx)})`;}));});
+  s.appendChild(f);return s;}
+
+// 타임머신: 선택한 달까지 각 의회가 다룬 신규 이슈 수(누적)와, 그달 처음 등장한 이슈
+let tmTimer=null;
+function timeMachine(){const s=el("section",{class:"block"});s.appendChild(el("h2",{},"시점을 돌려 보기"));
+  s.appendChild(el("p",{class:"intro"},"슬라이더를 움직이면 그 달까지 각 의회가 다룬 신규 이슈 수가 지도에 쌓입니다. 오른쪽은 그 달 처음 관측된 이슈입니다."));
+  const P=el("div",{class:"panel"});const g=el("div",{class:"tm"});const L=el("div"),R=el("div");
+  const m=geoMap({label:"월별 누적 신규 이슈 지도",onClick:a=>go("assemblies",{asm:a})});L.appendChild(m.svg);
+  const leg=el("div",{class:"tm-leg"});leg.append("적음");[...STEPS].reverse().forEach(c=>{const i=el("i");i.style.background=`var(${c})`;leg.appendChild(i);});leg.append("많음");L.appendChild(leg);
+  const now=el("div",{class:"tm-now"}),sub=el("div",{class:"tm-sub"}),lst=el("div",{class:"tm-new"});R.append(now,sub,el("div",{class:"hint",style:"margin-bottom:8px"},"이 달 처음 관측된 이슈"),lst);
+  g.append(L,R);P.appendChild(g);
+  const ctr=el("div",{class:"pctl"});const btn=el("button",{class:"pbtn","aria-label":"시점 재생"});
+  const range=el("input",{type:"range",min:"0",max:String(MKEYS.length-1),value:String(MKEYS.length-1),class:"prange","aria-label":"시점 선택"});
+  const ticks=el("div",{class:"pticks"});ticks.append(el("span",{},fmtYM(MKEYS[0]+"-01")),el("span",{},fmtYM(MKEYS[MKEYS.length-1]+"-01")));
+  const rw=el("div",{class:"prw"});rw.append(range,ticks);ctr.append(btn,rw);P.appendChild(ctr);s.appendChild(P);
+  const all=[...A,...B];const fin={};all.forEach(i=>i.tl.forEach(t=>{fin[t.a]=(fin[t.a]||0)+1;}));const top=Math.max(1,...Object.values(fin));
+  const icon=play=>{btn.replaceChildren();const sg=sv("svg",{viewBox:"0 0 16 16",width:"14",height:"14"});sg.appendChild(play?sv("path",{d:"M4 2.5v11l9-5.5z",fill:"currentColor"}):sv("path",{d:"M4 2.5h3v11H4zM9 2.5h3v11H9z",fill:"currentColor"}));btn.appendChild(sg);};
+  function show(j){range.value=String(j);const k=MKEYS[j],cut=k+"-31";const cnt={};let nI=0;
+    all.forEach(i=>{let any=false;i.tl.forEach(t=>{if(t.date<=cut){cnt[t.a]=(cnt[t.a]||0)+1;any=true;}});if(any)nI++;});
+    m.update(a=>{const c=cnt[a]||0;if(!c)return {tip:[full(a),`${fmtYM(k+"-01")}까지 신규 이슈 없음`]};const q=Math.min(STEPS.length-1,Math.floor((1-c/top)*(STEPS.length)));
+      return {fill:`var(${STEPS[q]})`,ink:inkOn(q),sub:String(c),tip:[full(a),`${fmtYM(k+"-01")}까지 신규 이슈 ${c}개`]};});
+    now.textContent=fmtYM(k+"-01");sub.textContent=`이때까지 ${nI}개 이슈가 ${Object.keys(cnt).length}개 의회에서 관측됐습니다.`;
+    const born=all.filter(i=>i.tl[0].date.slice(0,7)===k).sort((x,y)=>y.n_asm-x.n_asm);lst.replaceChildren();
+    if(!born.length)lst.appendChild(el("div",{class:"hint"},"이 달에 처음 관측된 신규 이슈는 없습니다."));
+    born.slice(0,7).forEach(i=>{const b=el("button");b.append(el("b",{style:"font-weight:500"},i.label),el("span",{},`${short(i.tl[0].a)} → ${i.n_asm}곳`));b.onclick=()=>go("issues",{issue:i.id});lst.appendChild(b);});
+    if(born.length>7)lst.appendChild(el("div",{class:"hint"},`외 ${born.length-7}개`));}
+  function stop(){clearInterval(tmTimer);tmTimer=null;icon(true);}
+  btn.onclick=()=>{if(tmTimer){stop();return;}let j=+range.value;if(j>=MKEYS.length-1)j=-1;icon(false);tmTimer=setInterval(()=>{j++;if(j>=MKEYS.length){stop();return;}show(j);},reduce?1200:650);};
+  range.oninput=()=>{stop();show(+range.value);};
+  if(tmTimer)clearInterval(tmTimer);tmTimer=null;icon(true);show(MKEYS.length-1);return s;}
 function renderOverview(){
   const v=$("#v-overview");v.replaceChildren();
   const hero=el("section",{class:"hero"});const L=el("div");
@@ -564,8 +652,10 @@ function renderOverview(){
   const lift=D.metrics.pos_rate?(D.metrics.precision_at_top10pct/D.metrics.pos_rate):null;
   [[M.n_utts.toLocaleString(),"개의 발언을 발언자 단위로 나눠 분석했습니다"],[String(A.length),"개 이슈가 시차를 두고 여러 의회로 퍼졌습니다"],
    [String(B.length),"개 이슈는 여러 의회가 거의 동시에 다뤘습니다"],[lift?lift.toFixed(1)+"배":"–","무작위로 고를 때보다 다음 확산 의회를 더 잘 맞혔습니다"]]
-   .forEach(([n,t])=>{const f=el("div",{class:"fig"});f.append(el("div",{class:"n"},n),el("div",{class:"t"},t));figs.appendChild(f);});
-  v.appendChild(figs);
+   .forEach(([n,t])=>{const f=el("div",{class:"fig"});const nn=el("div",{class:"n"},n);f.append(nn,el("div",{class:"t"},t));figs.appendChild(f);if(!counted)countUp(nn,n);});
+  counted=true;v.appendChild(figs);
+  v.appendChild(funnelBlock());
+  v.appendChild(timeMachine());
 
   const s1=el("section",{class:"block"});s1.appendChild(el("h2",{},"눈여겨볼 확산 사례"));
   s1.appendChild(el("p",{class:"intro"},"한 의회에서 처음 논의된 뒤 다른 의회로 차례로 이어진 이슈입니다. 곡선은 논의한 의회 수가 시간에 따라 늘어난 모양입니다."));
@@ -712,7 +802,7 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode===
     h.append(el("span",{class:"who"},full(t.a)),el("span",{class:"when"},k?`${fmtD(t.date)}, 최초 관측 후 ${t.lag}일`:fmtD(t.date)),el("span",{class:"tag "+rel},i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel])));
     if(i.ord_asm.includes(t.a))h.appendChild(el("span",{class:"tag ord"},"조례안 논의"));b.appendChild(h);
     b.appendChild(el("p",{class:"quote"},t.q));b.appendChild(el("div",{class:"src"},`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?", "+t.sp:""}`));
-    if(i.type==="A"){t.refs.forEach(f=>{const r=el("div",{class:"ref explicit"});r.append(el("div",{class:"rh"},f.g==="strong"?`${full(f.src)} 사례를 도입 근거로 제시 (제안설명·검토보고)`:`${full(f.src)}을(를) 선례로 언급`),el("div",{class:"quote",style:"margin:0"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));
+    if(i.type==="A"){t.refs.forEach(f=>{const r=el("div",{class:"ref explicit"});r.append(el("div",{class:"rh"},f.g==="strong"?`${full(f.src)} 사례를 도입 근거로 제시 (제안설명·검토보고)`:`${full(f.src)}을(를) 선례로 언급`),evidenceBlock(i,t,f));
         if(f.g==="predata")r.appendChild(el("div",{class:"caveat"},"언급된 의회의 논의는 데이터에서 더 늦게 잡히지만, 발언이 이미 시행 중이라고 말하고 있어 데이터 기간(2024년) 이전에 시작된 것으로 봅니다."));b.appendChild(r);});
       if(t.rel==="nonspecific"&&t.ns){const r=el("div",{class:"ref nonspecific"});r.append(el("div",{class:"rh"},"출처를 특정하지 않은 타 지역 언급"),el("div",{class:"quote",style:"margin:0"},t.ns.q),el("div",{class:"src"},`「${t.ns.m}」, ${fmtD(t.ns.date)}`));b.appendChild(r);}
       if(t.rel==="temporal")b.appendChild(el("div",{class:"caveat"},"도입 시점에 다른 지역을 언급하지 않아 시간 순서만 확인됩니다. 인과관계는 판단하지 않습니다."));}
@@ -1118,6 +1208,51 @@ function watchPanel(a){const codes=Object.keys(D.names).filter(x=>x!==a);
     mk("우리 사례를 참고할 만한 의회",`${full(a)}가 먼저 다룬 뒤 30일 이상 늦게 같은 의제를 다룬 횟수가 많은 의회입니다.`,fol,r=>`함께 다룬 의제 ${r.b}개 중 ${r.n}번 뒤따름`));
   pair.appendChild(el("p",{style:"grid-column:1/-1;margin:0;font-size:13px;color:var(--ink-2)"},"점진 확산형 의제의 시간 순서 통계이며, 영향 관계를 뜻하지 않습니다."));
   return pair;}
+
+/* ---------- 빠른 이동 (Ctrl+K) ---------- */
+const VIEWS=[["overview","개요"],["issues","이슈"],["assemblies","의회"],["relations","관계"],["flow","트렌드"],["model","예측 모델"]];
+let palIdx=0,palItems=[],palPrev=null;
+function palSearch(q){q=q.trim();const out=[];const has=s=>!q||s.includes(q);
+  VIEWS.forEach(([v,n])=>{if(has(n))out.push({k:"화면",t:n,x:"",f:()=>go(v)});});
+  Object.keys(D.names).forEach(a=>{if(q&&(has(full(a))||has(a)))out.push({k:"의회",t:full(a),x:"",f:()=>go("assemblies",{asm:a})});});
+  const iss=issues.map(i=>{let sc=-1;if(!q)sc=0;else if(i.label.startsWith(q))sc=3;else if(i.label.includes(q))sc=2;else if(i.variants.some(v=>v.includes(q)))sc=1;return [sc,i];})
+    .filter(([sc])=>sc>=0).sort((a,b)=>b[0]-a[0]).slice(0,q?12:6);
+  iss.forEach(([,i])=>out.push({k:i.type==="A"?"점진 확산":"동시다발",t:i.label,x:`${short(i.tl[0].a)} 시작 · ${i.n_asm}곳`,f:()=>go("issues",{issue:i.id})}));
+  if(q)out.push({k:"원문",t:`회의록 원문에서 '${q}' 찾기`,x:"",f:()=>{go("issues");qmode="text";syncQmode();$("#q").value=q;refresh();}});
+  return out;}
+function palRender(){const ul=$("#pall");ul.replaceChildren();palItems=palSearch($("#palq").value);palIdx=Math.min(palIdx,Math.max(0,palItems.length-1));
+  if(!palItems.length){ul.appendChild(el("li",{class:"hint",style:"display:block;cursor:default"},"맞는 항목이 없습니다. 다른 단어로 찾아보세요."));return;}
+  palItems.forEach((it,k)=>{const li=el("li",{role:"option",id:"po"+k,"aria-selected":String(k===palIdx)});li.append(el("span",{class:"k"},it.k),el("span",{class:"t"},it.t),el("span",{class:"x"},it.x));
+    li.onmousemove=()=>{if(palIdx!==k){palIdx=k;palSync();}};li.onclick=()=>palGo(k);ul.appendChild(li);});$("#palq").setAttribute("aria-activedescendant","po"+palIdx);}
+function palSync(){document.querySelectorAll("#pall li[role=option]").forEach((li,k)=>li.setAttribute("aria-selected",String(k===palIdx)));const c=$("#po"+palIdx);if(c)c.scrollIntoView({block:"nearest"});$("#palq").setAttribute("aria-activedescendant","po"+palIdx);}
+function palOpen(){palPrev=document.activeElement;$("#pal").classList.add("on");$("#palq").value="";palIdx=0;palRender();$("#palq").focus();}
+function palClose(){$("#pal").classList.remove("on");if(palPrev&&palPrev.focus)palPrev.focus();}
+function palGo(k){const it=palItems[k];palClose();if(it)it.f();}
+$("#kbtn").onclick=palOpen;$("#palq").oninput=()=>{palIdx=0;palRender();};
+$("#pal").addEventListener("click",e=>{if(e.target.id==="pal")palClose();});
+$("#palq").addEventListener("keydown",e=>{if(e.key==="ArrowDown"){e.preventDefault();palIdx=Math.min(palItems.length-1,palIdx+1);palSync();}
+  else if(e.key==="ArrowUp"){e.preventDefault();palIdx=Math.max(0,palIdx-1);palSync();}else if(e.key==="Enter"){e.preventDefault();palGo(palIdx);}else if(e.key==="Escape"){e.preventDefault();palClose();}});
+document.addEventListener("keydown",e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==="k"){e.preventDefault();$("#pal").classList.contains("on")?palClose():palOpen();}
+  else if(e.key==="/"&&!/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)&&!$("#pal").classList.contains("on")){e.preventDefault();palOpen();}});
+
+/* ---------- 판정 근거 체크리스트 ---------- */
+const RX=D.rx||{alias:{},cue:"",window:180};
+function marked(text,rules){const spans=[];rules.forEach(([re,cls])=>{if(!re)return;re.lastIndex=0;let m;while((m=re.exec(text))){if(!m[0].length){re.lastIndex++;continue;}spans.push([m.index,m.index+m[0].length,cls]);}});
+  spans.sort((a,b)=>a[0]-b[0]);const f=document.createDocumentFragment();let p=0;spans.forEach(([s,e,c])=>{if(s<p)return;f.append(text.slice(p,s));f.appendChild(el("mark",{class:c},text.slice(s,e)));p=e;});f.append(text.slice(p));return f;}
+function evidenceBlock(i,t,f){const box=el("div");const srcRe=RX.alias[f.src]?new RegExp(RX.alias[f.src],"g"):null,cueRe=RX.cue?new RegExp(RX.cue,"g"):null;
+  const q=el("div",{class:"quote",style:"margin:0"});q.appendChild(marked(f.q,[[srcRe,"m-src"],[cueRe,"m-cue"]]));box.appendChild(q);
+  box.appendChild(el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}${f.sp&&!f.sp.startsWith("(")?", "+f.sp:""}`));
+  const sf=(i.tl.find(x=>x.a===f.src)||{}).date;const lag=Math.round((new Date(f.date)-new Date(t.date))/864e5);
+  let cue="";if(cueRe){cueRe.lastIndex=0;const m=cueRe.exec(f.q);if(m)cue=m[0];}
+  const rows=[
+    [true,"시간적 선행",f.g==="predata"?`발언이 '이미·~부터' 시행 중이라고 진술 (데이터상 ${full(f.src)} 첫 관측 ${sf?fmtD(sf):"없음"})`:`${full(f.src)} ${fmtD(sf)} → ${full(t.a)} ${fmtD(t.date)}`],
+    [true,"대상 일치","지명이 나온 문장에 이 의제를 가리키는 표현이 있음"],
+    [true,"선례 언급",cue?`지명 뒤 30자 안의 단서어 '${cue}'`:"지명 뒤 30자 안에 선례 단서어"],
+    [true,"도입 시점",`이 의회의 첫 관측 후 ${Math.max(0,lag)}일 (${RX.window}일 이내)`],
+    [!!f.formal,"공식 입법 논리",f.formal?"조례안 제안설명·검토보고 맥락":"질의·발언 맥락이라 결정적 증거가 아닌 명시적 참조로 판정"]];
+  box.appendChild(el("div",{class:"evtitle"},`판정: ${GRADE[f.g]||"명시적 참조"}`));
+  const ck=el("div",{class:"evck"});rows.forEach(([ok,h,x])=>{const r=el("div");r.append(el("span",{class:ok?"ok":"na","aria-hidden":"true"},ok?"✓":"–"),el("span",{}));r.lastChild.append(el("b",{},h+" "),x);ck.appendChild(r);});box.appendChild(ck);
+  return box;}
 
 /* ---------- 둘러보기 (발표·첫 방문용 자동 안내) ---------- */
 const findIssue=(...names)=>{for(const n of names){const i=issues.find(x=>x.label===n)||issues.find(x=>x.label.includes(n));if(i)return i;}return null;};

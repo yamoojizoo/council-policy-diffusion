@@ -14,7 +14,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from .regions import ASSEMBLY_NAME, REGIONS
+from .regions import ALIAS_RE, ASSEMBLY_NAME, REGIONS
+from .spread import CUE, REF_WINDOW
 
 # 4열 x 5행 타일 카토그램 (대략적인 지리 배치)
 TILE = {"인천": (0, 0), "서울": (1, 0), "경기": (2, 0), "강원": (3, 0),
@@ -126,7 +127,8 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
         tl = []
         for t in s["timeline"]:
             refs = [dict(src=r["source"], date=_d(r["date"]), m=r["minutes_name"], sp=r["speaker"],
-                         q=_clip(r["snippet"], 300), ok=bool(r["consistent"]), g=r.get("grade", "medium")) for r in t["explicit_refs"][:2]]
+                         q=_clip(r["snippet"], 300), ok=bool(r["consistent"]), g=r.get("grade", "medium"),
+                         formal=bool(r.get("formal", False))) for r in t["explicit_refs"][:2]]
             ns = t.get("nonspec_ref")
             tl.append(dict(a=t["assembly"], date=_d(t["first_date"]), lag=t["lag_days"], rel=t["relation"], ev=t.get("evidence", t["relation"]),
                            m=t["minutes_name"], sp=t["speaker"], q=_clip(t["snippet"]), refs=refs,
@@ -210,14 +212,37 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
     return dict(
         meta=dict(d0=_d(docs.date.min()), d1=_d(docs.date.max()), n_docs=int(len(docs)), n_utts=int(n_utts),
                   n_asm=int(docs.assembly.nunique()), n_issues=int(len(issues)),
-                  n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out)),
+                  n_A=sum(i["type"] == "A" for i in out), n_B=sum(i["type"] == "B" for i in out),
+                  n_ranked=_n_ranked(issues, spread, docs.date.min()),
+                  n_ev=sum(t["ev"] in ("strong", "medium") for i in out for t in i["tl"])),
         names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, nbr={a: v["nbr"] for a, v in REGIONS.items()},
-        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"], texts=search_corpus(mentions, list(ranked_novel)))
+        lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"], texts=search_corpus(mentions, list(ranked_novel)),
+        rx=dict(alias={a: rx.pattern for a, rx in ALIAS_RE.items()}, cue=CUE.pattern, window=REF_WINDOW))
+
+
+def _n_ranked(issues, spread, d0):
+    """3개 이상 의회에서 관측되고 계절성·지나가는 말이 아닌 이슈 수(분석 깔때기 표시용)."""
+    from .report import rank_issues   # 순환 import 방지
+    try:
+        return int(len(rank_issues(issues, spread, d0=d0)))
+    except Exception:
+        return None
+
+
+def _font_css():
+    """대시보드에 Pretendard(SIL OFL 1.1) 부분 글꼴을 내장한다. 어느 PC에서 열어도 같은 서체로 보이게 하려는 것."""
+    import base64
+    f = Path(__file__).with_name("assets") / "PretendardSubset.woff2"
+    if not f.exists():
+        return ""
+    b64 = base64.b64encode(f.read_bytes()).decode()
+    return ("@font-face{font-family:'Pretendard Embed';font-weight:45 920;font-style:normal;font-display:swap;"
+            f"src:url(data:font/woff2;base64,{b64}) format('woff2')}}")
 
 
 def write_dashboard(path, payload):
     data = json.dumps(payload, ensure_ascii=False, default=str).replace("</", "<\\/")
-    html = TEMPLATE.replace("__DATA__", data)
+    html = TEMPLATE.replace("/*__FONT__*/", _font_css()).replace("__DATA__", data)
     with open(path, "w", encoding="utf-8") as f:
         f.write(html)
 
