@@ -897,6 +897,15 @@ function renderModel(){const v=$("#v-model");v.replaceChildren();const m=D.metri
     const r=el("tr",{class:"avg"});["평균",m.roc_auc.toFixed(3),(m.precision_at_top10pct*100).toFixed(1)+"%",(m.pos_rate*100).toFixed(1)+"%",lift.toFixed(1)+"배",""].forEach((x,j)=>r.appendChild(el("td",{class:j?"r":""},x)));t.appendChild(r);p.appendChild(t);
     if(m.ordinance_issues){const o=m.ordinance_issues;p.appendChild(el("p",{class:"hint",style:"margin:14px 0 0"},`조례로 제도화된 이슈만 보면 ROC-AUC ${o.roc_auc.toFixed(3)}, 상위 10% 적중 ${(o.precision_at_top10pct*100).toFixed(1)}%로 무작위(${(o.pos_rate*100).toFixed(1)}%)의 약 ${(o.precision_at_top10pct/o.pos_rate).toFixed(1)}배입니다.`));}
     s.appendChild(p);}
+  if(D.upd&&D.upd.check&&D.upd.check.n){const U=D.upd,c=U.check;const p=el("div",{class:"panel",style:"margin-top:20px"});
+    p.append(el("h3",{},"모델이 보지 않은 이후 기간으로 다시 확인"),
+      el("p",{class:"hint"},`${fmtD(U.prev_d1)}까지의 회의록만으로 처음부터 다시 분석해 예측한 뒤, 그 뒤 ${U.days}일(${U.new_docs.toLocaleString()}건)의 회의록에서 실제로 논의가 시작됐는지 맞춰 봤습니다. 예측 등급이 높을수록 실제로 다룬 비율이 높아야 합니다.`));
+    const tb=el("div",{class:"tierbars",style:"margin-top:12px"});const mx=Math.max(...Object.values(c.tiers).map(g=>g.rate),0.001);
+    ["높음","보통","낮음"].forEach(t=>{const g=c.tiers[t];if(!g)return;const r=el("div",{class:"tb"});const b=el("div",{class:"bar"});const i=el("i");i.style.width=(g.rate/mx*100)+"%";
+      i.style.background=t==="높음"?"var(--d-orange)":t==="보통"?"var(--d-blue)":"var(--d-neutral)";b.appendChild(i);
+      r.append(el("b",{},t),b,el("span",{class:"v"},`${(g.rate*100).toFixed(1)}%  (${g.hit}/${g.n.toLocaleString()})`));tb.appendChild(r);});p.appendChild(tb);
+    p.appendChild(el("p",{class:"hint",style:"margin:12px 0 0"},`전체 평균 ${(c.base*100).toFixed(1)}%${c.auc!=null?`, ROC-AUC ${c.auc.toFixed(3)}`:""}${c.p10!=null?`, 점수 상위 10% 적중 ${(c.p10*100).toFixed(1)}%`:""}. 예측 기간(180일)보다 관찰 기간이 짧아 비율 자체는 낮게 나옵니다.`));
+    s.appendChild(p);}
   const w=Object.entries(D.weights).sort((a,b)=>b[1]-a[1]);
   if(w.length){const p=el("div",{class:"panel",style:"margin-top:20px"});p.append(el("h3",{},"예측 모델이 쓰는 신호"),el("p",{class:"hint"},"예측용 표준화 로지스틱 회귀의 계수입니다. 오른쪽(파랑)은 점수를 높이고 왼쪽(빨강)은 낮춥니다. 서로 비슷한 특징(예: 평균·최대 의제 유사도)은 부호가 엇갈리며 함께 작동하므로, 막대 하나를 그 요인의 효과로 읽지 않습니다. 어떤 요인이 실제로 확산과 관련되는지는 보고서의 이론 가설 검증에서 따로 추정했습니다."));
     const W=900,rowH=30,P={l:290,r:80},H=w.length*rowH+8,mx=Math.max(...w.map(x=>Math.abs(x[1])));const X=v=>P.l+(v+mx)/(2*mx)*(W-P.l-P.r);

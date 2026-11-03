@@ -107,15 +107,17 @@ def compare(prev, docs, utts, issues, spread, ranked, novel):
     lab = dict(zip(issues.issue_id.astype(int), issues.label))
     # 이슈 번호는 실행마다 달라질 수 있어, 표면형(띄어쓰기 없앤 표현)이 가장 많이 겹치는 지난번 이슈와 짝짓는다
     from collections import Counter
-    surf_prev = {}
-    for i, sf in zip(prev["issues"].issue_id.astype(int), prev["issues"].surfaces):
+    # 표면형 목록의 순서는 실행마다 달라질 수 있어(집합 순서), 동점이면 대표 명칭이 같은 것 → 겹친 비율이 높은 것 → 번호 순으로 고른다
+    surf_prev, plab, pn = {}, {}, {}
+    for i, l, sf in zip(prev["issues"].issue_id.astype(int), prev["issues"].label, prev["issues"].surfaces):
+        plab[i], pn[i] = l, len(sf)
         for x in sf:
-            surf_prev.setdefault(x, i)
+            surf_prev.setdefault(x, set()).add(i)
     to_prev = {}
-    for i, sf in zip(issues.issue_id.astype(int), issues.surfaces):
-        c = Counter(surf_prev[x] for x in sf if x in surf_prev)
+    for i, l, sf in zip(issues.issue_id.astype(int), issues.label, issues.surfaces):
+        c = Counter(j for x in set(sf) for j in surf_prev.get(x, ()))
         if c:
-            to_prev[i] = c.most_common(1)[0][0]
+            to_prev[i] = max(c, key=lambda j: (plab[j] == l, c[j], c[j] / pn[j], -j))
     prev_tier = {}
     if len(prev["preds"]):
         for r in prev["preds"].itertuples(index=False):

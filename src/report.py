@@ -150,7 +150,7 @@ def _grade(t):
     return GRADE_KO.get(t.get("evidence") or t["relation"], REL_KO.get(t["relation"], t["relation"]))
 
 
-def _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions):
+def _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions, upd=None):
     """보고서 맨 앞 '핵심 요약': 분석 결과에서 자동으로 문장을 만든다(실행할 때마다 갱신)."""
     L = ["## 핵심 요약", ""]
     nA = sum(not spread[i]["simultaneous"] for i in novel)
@@ -192,6 +192,14 @@ def _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions):
     if metrics and "roc_auc" in metrics:
         L.append(f"6. **다음 확산 의회 예측**: 과거 시점으로 돌아가 검증한 결과, 확산 가능성 상위 10%로 고른 의회 중 {metrics['precision_at_top10pct']:.1%}가 "
                  f"실제로 6개월 안에 논의를 시작했다. 무작위({metrics['pos_rate']:.1%})의 약 {metrics['precision_at_top10pct'] / max(metrics['pos_rate'], 1e-9):.1f}배다.")
+    c = (upd or {}).get("check") or {}
+    if c.get("n") and c.get("tiers"):
+        t = c["tiers"]
+        L.append(f"7. **실제 이후 기간으로 다시 확인한 예측**: {upd['prev_d1'][:4]}.{int(upd['prev_d1'][5:7])}.{int(upd['prev_d1'][8:])}까지의 회의록만으로 "
+                 f"처음부터 다시 분석해 예측한 뒤, 모델이 보지 않은 이후 {upd['days']}일({upd['new_docs']:,}건)의 회의록과 맞춰 봤다. "
+                 f"'높음'으로 예측한 (이슈, 의회) 조합의 {t['높음']['rate']:.1%}가 실제로 논의를 시작해 평균({c['base']:.1%})의 "
+                 f"{t['높음']['lift']}배였고, '보통' {t['보통']['rate']:.1%}, '낮음' {t['낮음']['rate']:.1%}로 예측 등급 순서와 일치했다"
+                 + (f"(ROC-AUC {c['auc']:.3f})." if c.get("auc") is not None else "."))
     L.append("")
     L.append("모든 판단에는 회의록명, 회의일자, 발언자, 원문 구간을 붙였다. 이론 가설 검증의 전체 결과는 `hypotheses.md`에 있다.")
     L.append("")
@@ -203,7 +211,7 @@ def top_k(order):
 
 
 def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds, metrics, weights, top_n=15,
-                 n_persistent=10, n_simul=5, hres=None):
+                 n_persistent=10, n_simul=5, hres=None, upd=None):
     d0 = docs.date.min()
     ranked = rank_issues(issues, spread, d0=d0)
     # 본문 서술: 데이터 기간 중 새로 등장한 이슈(최초 관측 시점을 의미 있게 특정할 수 있는 이슈)
@@ -216,7 +224,7 @@ def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     kw = assembly_keywords(mentions, issues)
     L = ["# 광역 지방의회 회의록 기반 지방정책 이슈 트렌드 분석 및 확산 흐름 예측", ""]
-    L += _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions)
+    L += _summary(novel, order, simul, spread, iss_map, metrics, hres, mentions, upd)
     L.append("## 0. 분석 개요")
     L.append(f"- 데이터 범위(= 분석 기준일): {_d(docs.date.min())} ~ {_d(docs.date.max())}")
     L.append(f"- 회의록 {len(docs):,}건, 발언 {len(utts):,}개, 광역의회 {docs.assembly.nunique()}곳")
@@ -283,6 +291,6 @@ def write_report(path_md, path_json, docs, utts, issues, mentions, spread, preds
                         forecast=[dict(assembly=r.assembly, p=round(float(r.p), 4), tier=r.tier, reasons=r.reasons)
                                   for r in p.itertuples(index=False)]))
     with open(path_json, "w", encoding="utf-8") as f:
-        json.dump(dict(metrics=metrics, weights=weights, assembly_keywords=kw, issues=out), f,
+        json.dump(dict(metrics=metrics, posthoc=(upd or {}).get("check"), weights=weights, assembly_keywords=kw, issues=out), f,
                   ensure_ascii=False, indent=1, default=conv)
     return order

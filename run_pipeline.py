@@ -177,7 +177,7 @@ def main():
             log(f"갱신 보고서 생략: {type(e).__name__}: {e}")
 
     order = write_report(f"{a.out_dir}/report.md", f"{a.out_dir}/results.json", docs, utts, issues, mentions,
-                         spread, preds, metrics, weights, top_n=a.top_n, hres=hres)
+                         spread, preds, metrics, weights, top_n=a.top_n, hres=hres, upd=upd)
     log(f"보고서 작성: {a.out_dir}/report.md (이슈 {len(order)}개)")
     write_dashboard(f"{a.out_dir}/dashboard.html",
                     build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
