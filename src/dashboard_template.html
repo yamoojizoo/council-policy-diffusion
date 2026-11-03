@@ -270,6 +270,17 @@ tr.avg td{font-weight:600}
   .cmaps{grid-template-columns:1fr}}
 @media (min-width:721px){.pchip .short{display:none}}
 
+.stg{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;margin:0 0 6px}
+.stg div{height:8px;border-radius:999px;background:var(--fill)}
+.stg div.on{background:var(--d-blue)}.stg div.past{background:color-mix(in srgb,var(--d-blue) 35%,var(--fill))}
+.stagecap{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;font-size:12px;color:var(--ink-3)}
+.stagecap span.on{color:var(--ink);font-weight:600}
+.stagebox{background:var(--surface);border-radius:18px;padding:16px 18px;margin-bottom:20px}
+.stagebox .sb-h{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;font-size:14px}
+.stagebox .sb-h b{font-size:15px}
+.tag.ord{background:color-mix(in srgb,var(--cmp3) 14%,transparent);color:var(--cmp3)}
+.watch{display:grid;grid-template-columns:minmax(0,1fr) 120px;gap:12px;align-items:center;padding:10px 0;border-top:1px solid var(--hair-2)}
+.watch:first-of-type{border-top:0}
 .sr{padding:14px 4px;border-top:1px solid var(--hair-2);cursor:pointer;border-radius:8px}
 .sr:first-of-type{border-top:0}.sr:hover{background:var(--surface-2)}
 .sr .sh{display:flex;gap:6px 12px;flex-wrap:wrap;align-items:baseline;font-size:13px;color:var(--ink-2);margin-bottom:4px}
@@ -458,7 +469,7 @@ function issueState(i, cut, showPred){
   const order={};i.tl.forEach((t,k)=>order[t.a]=k);const pred={};(i.pred||[]).forEach(p=>pred[p.a]=p);const n=i.tl.length;
   return a=>{const k=order[a];const seen=k!==undefined&&(!cut||i.tl[k].date<=cut);
     if(seen){const t=i.tl[k],s=seq(k,n);return {fill:s.fill,ink:inkOn(s.k),sub:`${t.date.slice(2,4)}.${t.date.slice(5,7)}`,stroke:k===0?"var(--ink)":null,
-      tip:[full(a),`${k+1}번째로 관측 (${fmtD(t.date)})`,k?`최초 관측 후 ${t.lag}일, ${REL[t.rel]}`:"최초 관측 의회",`「${t.m}」`]};}
+      tip:[full(a),`${k+1}번째로 관측 (${fmtD(t.date)})`,k?`최초 관측 후 ${t.lag}일, ${REL[t.rel]}`:"최초 관측 의회",...((i.ord_asm||[]).includes(a)?["조례안으로 다룸"]:[]),`「${t.m}」`]};}
     const p=pred[a],hot=showPred&&p&&p.tier!=="낮음";
     return {fill:hot?"color-mix(in srgb, var(--d-orange) 16%, var(--q0))":"var(--q0)",ink:"var(--ink-3)",sub:hot?"예측":"",stroke:hot?"var(--d-orange)":null,dashed:hot,
       tip:[full(a),k!==undefined?"이 시점에는 아직 관측 전":"제공 데이터 범위에서 관측되지 않음",...(p?[`확산 가능성 ${p.tier} (점수 ${p.p.toFixed(2)})`,...p.why]:[])]};};}
@@ -611,7 +622,7 @@ $("#q").addEventListener("input",refresh);$("#sort").addEventListener("input",re
 function renderList(){const L=$("#list");L.replaceChildren();const a=filtered();$("#count").textContent=`이슈 ${a.length}개`;
   if(!a.length){L.appendChild(el("div",{class:"li"},"검색어와 맞는 이슈가 없습니다. 다른 단어로 찾아보세요."));return;}
   a.forEach(i=>{const it=el("div",{class:"li",role:"option","aria-selected":i.id===sel,tabindex:"0"});
-    it.append(el("div",{class:"lt"},i.label),el("div",{class:"ls"},`${i.type==="A"?"점진 확산":"동시다발"}, ${i.n_asm}개 의회, ${i.tl[0].a} ${i.tl[0].date.slice(0,7).replace("-",".")} 시작`));
+    it.append(el("div",{class:"lt"},i.label),el("div",{class:"ls"},`${i.type==="A"?"점진 확산":"동시다발"}, ${STAGES[stageOf(i)][0]}, ${i.n_asm}개 의회, ${i.tl[0].a} ${i.tl[0].date.slice(0,7).replace("-",".")} 시작`));
     const pick=()=>{sel=i.id;cmpView=false;renderList();renderDetail();setHash();if(innerWidth<=1100)$("#detail").scrollIntoView({behavior:reduce?"auto":"smooth"});};it.onclick=pick;it.onkeydown=e=>{if(e.key==="Enter")pick();};L.appendChild(it);});
   const s=L.querySelector('[aria-selected="true"]');if(s&&!s._seen){s.scrollIntoView({block:"nearest"});}}
 let cmp=[],cmpView=false;const CMPC=["var(--d-blue)","var(--d-orange)","var(--cmp3)"];
@@ -667,8 +678,9 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode===
     : `${fmtD(o.date)} 무렵 여러 의회가 짧은 기간 안에 함께 다루기 시작했습니다. 공통의 외부 계기에 반응한 것으로 보고, 의회 사이의 전달 경로는 추정하지 않습니다.`;
   wrap.appendChild(el("p",{class:"summary"},sum));
   if(i.variants.length)wrap.appendChild(el("p",{class:"summary",style:"font-size:14px;margin-top:-14px"},"같은 이슈로 묶은 표현: "+i.variants.join(", ")));
-  const stats=el("div",{class:"stats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.n_docs}건`,"관련 회의록"],[`${i.n_exp}곳`,"명시적 참조"],[fmtD(o.date),"최초 관측"]].forEach(([n,t])=>{const s=el("div",{class:"stat"});s.append(el("div",{class:"n"},n),el("div",{class:"t"},t));stats.appendChild(s);});
+  const stats=el("div",{class:"stats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.ord_asm.length}곳`,"조례안으로 다룬 의회"],[`${i.n_exp}곳`,"명시적 참조"],[fmtD(o.date),"최초 관측"]].forEach(([n,t])=>{const s=el("div",{class:"stat"});s.append(el("div",{class:"n"},n),el("div",{class:"t"},t));stats.appendChild(s);});
   wrap.appendChild(stats);
+  wrap.appendChild(stageBox(i));
   if(i.upstream)wrap.appendChild(el("div",{class:"upnote"},"초기 발언에 법령 개정이나 중앙부처를 언급한 비중이 높아, 상위 법령이나 정부 정책에 따른 동시 대응일 가능성도 있습니다."));
   const g=el("div",{class:"grid2"});
   const p1=el("div",{class:"panel"});p1.append(el("h3",{},"어디서 논의됐나"),el("p",{class:"hint"},"재생 버튼을 누르면 월별로 논의가 번져 가는 과정을 볼 수 있습니다. 진할수록 먼저 관측된 의회이고, 파란 화살표는 회의록에서 다른 지역을 직접 언급한 경우입니다."));
@@ -685,7 +697,8 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode===
   const tl=el("div",{class:"tl"});const LIM=6;
   const item=(t,k)=>{const it=el("div",{class:"tl-item"});const rel=i.type==="B"&&k?"temporal":t.rel;
     it.appendChild(el("div",{class:"dot "+rel},String(k+1)));const b=el("div");const h=el("div",{class:"tl-h"});
-    h.append(el("span",{class:"who"},full(t.a)),el("span",{class:"when"},k?`${fmtD(t.date)}, 최초 관측 후 ${t.lag}일`:fmtD(t.date)),el("span",{class:"tag "+rel},i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel])));b.appendChild(h);
+    h.append(el("span",{class:"who"},full(t.a)),el("span",{class:"when"},k?`${fmtD(t.date)}, 최초 관측 후 ${t.lag}일`:fmtD(t.date)),el("span",{class:"tag "+rel},i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel])));
+    if(i.ord_asm.includes(t.a))h.appendChild(el("span",{class:"tag ord"},"조례안 논의"));b.appendChild(h);
     b.appendChild(el("p",{class:"quote"},t.q));b.appendChild(el("div",{class:"src"},`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?", "+t.sp:""}`));
     if(i.type==="A"){t.refs.forEach(f=>{const r=el("div",{class:"ref explicit"});r.append(el("div",{class:"rh"},f.g==="strong"?`${full(f.src)} 사례를 도입 근거로 제시 (제안설명·검토보고)`:`${full(f.src)}을(를) 선례로 언급`),el("div",{class:"quote",style:"margin:0"},f.q),el("div",{class:"src"},`「${f.m}」, ${fmtD(f.date)}`));
         if(f.g==="predata")r.appendChild(el("div",{class:"caveat"},"언급된 의회의 논의는 데이터에서 더 늦게 잡히지만, 발언이 이미 시행 중이라고 말하고 있어 데이터 기간(2024년) 이전에 시작된 것으로 봅니다."));b.appendChild(r);});
@@ -723,6 +736,7 @@ function renderAssemblies(){const v=$("#v-assemblies");v.replaceChildren();
   right.appendChild(ul);
   wrap.append(left,right);v.appendChild(wrap);
   const pair=el("div",{class:"grid2",style:"margin-top:20px;align-items:start"});pair.append(specialPanel(selAsm),gapPanel(selAsm));v.appendChild(pair);
+  const ws=el("section",{class:"block",style:"padding-top:40px"});ws.appendChild(el("h2",{style:"font-size:24px"},"지켜볼 의회"));ws.appendChild(watchPanel(selAsm));v.appendChild(ws);
   const s=el("section",{class:"block"});s.appendChild(el("h2",{style:"font-size:24px"},"혁신성 순위"));const p=el("div",{class:"panel"});p.appendChild(innoChart(D.innovation,selAsm));s.appendChild(p);v.appendChild(s);}
 
 /* ---------- model ---------- */
@@ -955,7 +969,7 @@ const newIn6m=i=>i.tl.filter((t,k)=>k>0&&t.date>RECENT).length;
 const expNew=i=>(i.pred||[]).reduce((s,x)=>s+x.p,0);
 function issueRows(list,cols){const rows=el("div",{class:"rows"});
   list.forEach(i=>{const r=el("div",{class:"row"+(cols.length>2?" r6":""),tabindex:"0",role:"button"});
-    const c1=el("div");c1.append(el("div",{class:"nm"},i.label),el("div",{class:"sm"},`${full(i.tl[0].a)}에서 ${fmtYM(i.tl[0].date)} 처음 관측`+(i.field&&i.field!=="복합"?`, ${i.field}`:"")));
+    const c1=el("div");c1.append(el("div",{class:"nm"},i.label),el("div",{class:"sm"},`${full(i.tl[0].a)}에서 ${fmtYM(i.tl[0].date)} 처음 관측, ${STAGES[stageOf(i)][0]}`+(i.field&&i.field!=="복합"?`, ${i.field}`:"")));
     const c2=el("div",{class:"hide-sm"});c2.appendChild(spark(i));
     r.append(c1,c2);cols.forEach(([n,t])=>{const c=el("div");c.append(el("div",{class:"big"},n(i)),el("div",{class:"sm"},t));r.appendChild(c);});
     r.appendChild(el("div",{class:"chev"},"›"));const open=()=>go("issues",{issue:i.id});r.onclick=open;r.onkeydown=e=>{if(e.key==="Enter")open();};rows.appendChild(r);});
@@ -1029,6 +1043,7 @@ function renderFor(){const v=$("#v-for");v.replaceChildren();if(!persona)return;
       const bt=el("div",{class:"nextrow",style:"align-items:center"});const cp=el("button",{class:"btn"},"문안 복사");cp.onclick=()=>copyText(ta,cp);
       const op=el("button",{class:"btn ghost"},"이 의제 자세히 보기");op.onclick=()=>go("issues",{issue:draftSel});bt.append(cp,op);
       pn.append(sel,ta,bt);s5.appendChild(pn);v.appendChild(s5);}
+    const sw=sect("지켜볼 의회");sw.appendChild(watchPanel(a));v.appendChild(sw);
     const pf=D.profiles[a]||{led:[]};const s2=sect("이 의회가 먼저 꺼낸 의제와 특화 의제");const pair=el("div",{class:"grid2",style:"align-items:start"});
     const lp=el("div",{class:"panel"});lp.append(el("h3",{},"먼저 꺼낸 뒤 다른 의회로 이어진 의제"),el("p",{class:"hint"},"다른 의회가 참고할 수 있는 이 의회의 선행 사례입니다."));
     const ul=el("ul",{class:"led"});if(!pf.led.length)ul.appendChild(el("li",{},"해당하는 의제가 없습니다."));
@@ -1068,6 +1083,29 @@ function renderFor(){const v=$("#v-for");v.replaceChildren();if(!persona)return;
     s3.appendChild(nextBtns([["의회 간 선행 관계",()=>go("relations")],["예측 검증 결과",()=>go("model")],["모든 이슈",()=>go("issues")]]));v.appendChild(s3);}
 }
 
+/* ---------- 확산 단계 (Rogers, 2003의 채택자 누적 비율 기준) ---------- */
+const STAGES=[["도입 초기","2곳 이하(16% 이하): 혁신자·조기 수용자 단계"],["확산기","3~8곳(50% 이하): 조기 다수 단계, 입법 검토를 시작하기 좋은 때"],
+  ["확산 후반","9~14곳(84% 이하): 후기 다수 단계, 지역 간 기준 차이가 쌓이는 때"],["포화","15곳 이상: 대부분의 의회가 다룬 단계"]];
+function stageOf(i){const n=i.n_asm,N=Object.keys(D.names).length;const s=n/N;return s<=0.16?0:s<=0.5?1:s<=0.84?2:3;}
+function stageBox(i){const k=stageOf(i);const b=el("div",{class:"stagebox"});
+  const h=el("div",{class:"sb-h"});h.append(el("b",{},`확산 단계: ${STAGES[k][0]}`),el("span",{class:"gs"},STAGES[k][1]));b.appendChild(h);
+  const bar=el("div",{class:"stg"});STAGES.forEach((_,j)=>bar.appendChild(el("div",{class:j===k?"on":j<k?"past":""})));b.appendChild(bar);
+  const cap=el("div",{class:"stagecap"});STAGES.forEach((x,j)=>cap.appendChild(el("span",{class:j===k?"on":""},x[0])));b.appendChild(cap);
+  b.appendChild(el("p",{class:"hint",style:"margin:10px 0 0"},"광역의회 17곳 중 이 의제를 다룬 의회의 비율로 나눈 단계입니다. 혁신 확산 이론(Rogers)의 채택자 구분 기준(16%, 50%, 84%)을 따랐습니다."));return b;}
+/* ---------- 지켜볼 의회 (의회 간 선행 빈도) ---------- */
+function watchPanel(a){const codes=Object.keys(D.names).filter(x=>x!==a);
+  const lead=codes.map(x=>({x,n:D.lead[x][a],b:D.both[x][a]})).filter(r=>r.n>0).sort((p,q)=>q.n-p.n||q.b-p.b).slice(0,5);
+  const fol=codes.map(x=>({x,n:D.lead[a][x],b:D.both[a][x]})).filter(r=>r.n>0).sort((p,q)=>q.n-p.n||q.b-p.b).slice(0,5);
+  const pair=el("div",{class:"grid2",style:"align-items:start"});
+  const mk=(title,hint,rows,fmt)=>{const p=el("div",{class:"panel"});p.append(el("h3",{},title),el("p",{class:"hint"},hint));
+    if(!rows.length)p.appendChild(el("p",{class:"hint"},"해당하는 의회가 없습니다."));
+    const mx=Math.max(1,...rows.map(r=>r.n));rows.forEach(r=>{const w=el("div",{class:"watch"});const t=el("div");t.append(el("div",{class:"gn"},full(r.x)),el("div",{class:"gs"},fmt(r)));
+      const bar=el("div",{class:"bar"}),f=el("i");f.style.width=(r.n/mx*100)+"%";bar.appendChild(f);w.append(t,bar);p.appendChild(w);});return p;};
+  pair.append(mk("먼저 지켜볼 의회",`${full(a)}보다 30일 이상 먼저 같은 의제를 다룬 횟수가 많은 의회입니다. 이 의회 회의록에서 다음 의제를 미리 볼 수 있습니다.`,lead,r=>`함께 다룬 의제 ${r.b}개 중 ${r.n}번 먼저`),
+    mk("우리 사례를 참고할 만한 의회",`${full(a)}가 먼저 다룬 뒤 30일 이상 늦게 같은 의제를 다룬 횟수가 많은 의회입니다.`,fol,r=>`함께 다룬 의제 ${r.b}개 중 ${r.n}번 뒤따름`));
+  pair.appendChild(el("p",{style:"grid-column:1/-1;margin:0;font-size:13px;color:var(--ink-2)"},"점진 확산형 의제의 시간 순서 통계이며, 영향 관계를 뜻하지 않습니다."));
+  return pair;}
+
 /* ---------- 링크 공유(주소에 화면 상태 저장) ---------- */
 function setHash(){let h="";
   if(view==="issues"&&sel!==undefined&&sel!==null)h="issue="+sel;else if(view==="assemblies")h="asm="+encodeURIComponent(selAsm);
@@ -1086,15 +1124,15 @@ function copyLink(btn){const url=location.href;const done=()=>{const t=el("span"
 function printBrief(i){const P=$("#print");P.replaceChildren();const prevTheme=root.dataset.theme;root.dataset.theme="light";
   const o=i.tl[0];
   P.append(el("div",{class:"pk"},`지방의회 정책 확산 지도 · 의제 브리핑 · 광역의회 회의록 ${fmtD(M.d0)}~${fmtD(M.d1)} 기준`),el("h1",{},i.label));
-  P.appendChild(el("div",{class:"pk"},(i.type==="A"?"점진 확산형":"동시다발형")+(i.src.includes("조례")?", 조례안으로 제도화":"")+(i.field&&i.field!=="복합"?`, ${i.field} 분야`:"")));
+  P.appendChild(el("div",{class:"pk"},`확산 단계: ${STAGES[stageOf(i)][0]} · `+(i.type==="A"?"점진 확산형":"동시다발형")+(i.src.includes("조례")?", 조례안으로 제도화":"")+(i.field&&i.field!=="복합"?`, ${i.field} 분야`:"")));
   const sum=i.type==="A"?`${full(o.a)}에서 ${fmtD(o.date)}에 처음 관측된 뒤 ${i.tl.length-1}개 의회로 논의가 이어졌다. `+(i.n_exp?`이 가운데 ${i.n_exp}곳은 회의록에서 먼저 시작한 지역을 선례로 언급했다. 나머지는 시간 순서만 확인되므로 영향 관계로 단정하지 않는다.`:"회의록에서 다른 지역을 선례로 언급한 경우는 없어, 시간 순서만 확인된다.")
     :`${fmtD(o.date)} 무렵 여러 의회가 짧은 기간 안에 함께 다루기 시작했다. 공통의 외부 계기에 반응한 것으로 보고, 의회 사이의 전달 경로는 추정하지 않는다.`;
   P.appendChild(el("p",{class:"ps"},sum));
   const st=el("div",{class:"pstats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.ord_asm.length}곳`,"조례안으로 다룸"],[`${i.n_exp}곳`,"선례 언급"],[`${i.law.n_asm}곳`,"법률 대응 언급"],[`${i.n_docs}건`,"관련 회의록"]]
     .forEach(([n,t])=>{const d=el("div");d.append(el("b",{},n),el("span",{},t));st.appendChild(d);});P.appendChild(st);
   const fig=el("div",{class:"pfig"});const gm=geoMap({label:"관측 의회 지도"});gm.update(issueState(i,M.d1,false));fig.append(gm.svg,curve(i,420,200));P.appendChild(fig);
-  P.appendChild(el("h2",{},"의회별 첫 논의"));const tb=el("table");const hr=el("tr");["순서","의회","첫 관측","근거 등급","회의록·발언자"].forEach(h=>hr.appendChild(el("th",{},h)));tb.appendChild(hr);
-  i.tl.forEach((t,k)=>{const r=el("tr");[String(k+1),full(t.a),fmtD(t.date),i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel]),`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?" "+t.sp:""}`].forEach(x=>r.appendChild(el("td",{},x)));tb.appendChild(r);});P.appendChild(tb);
+  P.appendChild(el("h2",{},"의회별 첫 논의"));const tb=el("table");const hr=el("tr");["순서","의회","첫 관측","근거 등급","조례안","회의록·발언자"].forEach(h=>hr.appendChild(el("th",{},h)));tb.appendChild(hr);
+  i.tl.forEach((t,k)=>{const r=el("tr");[String(k+1),full(t.a),fmtD(t.date),i.type==="B"&&k?"동시 대응":(GRADE[t.ev]||REL[t.rel]),i.ord_asm.includes(t.a)?"○":"",`「${t.m}」${t.sp&&!t.sp.startsWith("(")&&!t.sp.includes("회의록")?" "+t.sp:""}`].forEach(x=>r.appendChild(el("td",{},x)));tb.appendChild(r);});P.appendChild(tb);
   P.appendChild(el("h2",{},"근거 원문"));
   const q=(head,text,src)=>{const d=el("div",{class:"pq"});d.append(el("b",{},head),el("div",{},text),el("div",{class:"src"},src));P.appendChild(d);};
   q(`최초 관측: ${full(o.a)}`,o.q,`「${o.m}」 ${fmtD(o.date)}`);
