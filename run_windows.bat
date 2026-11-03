@@ -6,9 +6,10 @@ set LOG=%~dp0install_log.txt
 echo "%CD%" | find /i "\Temp\" >nul && (echo [오류] 압축을 풀지 않고 ZIP 안에서 바로 실행했습니다. ZIP 파일을 우클릭해 '압축 풀기'를 한 뒤, 풀린 폴더 안의 run_windows.bat을 실행하세요. & pause & exit /b 1)
 if not exist run_pipeline.py (echo [오류] run_pipeline.py가 같은 폴더에 없습니다. 압축을 푼 폴더 안의 run_windows.bat을 실행하세요. & echo 지금 위치: %CD% & pause & exit /b 1)
 
-rem ---- Python 찾기: python.org 설치본의 py 실행기를 먼저 쓴다 (PATH 체크를 빼먹어도 동작, 3.13/3.12 우선)
+rem ---- Python 찾기: py 실행기에 '설치되어 있다고 나오는' 버전만 시도한다
+rem      (없는 버전을 부르면 새 설치 관리자가 설치 여부를 묻느라 멈출 수 있음). 모든 라이브러리 설치 파일이 있는 3.14 우선
 set PY=
-for %%V in (3.13 3.12 3.14 3.11 3.10) do if not defined PY (py -%%V -c "import sys" >nul 2>nul && set PY=py -%%V)
+for %%V in (3.14 3.13 3.12 3.11 3.10) do if not defined PY (py -0 2>nul | findstr /c:"-V:%%V" >nul && py -%%V -c "import sys" >nul 2>nul && set PY=py -%%V)
 if not defined PY (python -c "import sys" >nul 2>nul && set PY=python)
 if not defined PY (
   echo [오류] 실행할 수 있는 Python을 찾지 못했습니다.
