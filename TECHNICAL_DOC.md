@@ -420,6 +420,7 @@
 ### 5.2 실행
 ```bash
 pip install -r requirements.txt
+pip install -r requirements-optional.txt   # 선택: 실패해도 결과는 같고 속도만 차이
 # data/ 아래에 회의록 JSON 배치 (하위 폴더 허용)
 python run_pipeline.py --data_dir data --out_dir output
 ```

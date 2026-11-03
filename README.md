@@ -27,6 +27,7 @@
 
 ```bash
 pip install -r requirements.txt
+pip install -r requirements-optional.txt   # 선택: 실패해도 결과는 같고 속도만 차이
 # 국회도서관 국가학술정보 클라우드에서 받은 회의록 JSON을 data/ 아래에 둔다 (하위 폴더, .json/.json.gz/.jsonl 허용)
 python run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30   # 사후 검증용 지난 시점 분석
 python run_pipeline.py --data_dir data --out_dir output --prev_out output_prev     # 최종 분석

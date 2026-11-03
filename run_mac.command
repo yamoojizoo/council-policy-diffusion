@@ -7,7 +7,9 @@ N=$(find data -type f \( -name "*.json" -o -name "*.json.gz" -o -name "*.jsonl" 
 echo "회의록 파일 ${N}개를 찾았습니다."
 
 echo "[1/4] 라이브러리 설치 중..."
-python3 -m pip install -r requirements.txt || { echo "[오류] 라이브러리 설치에 실패했습니다. 인터넷 연결을 확인하세요."; exit 1; }
+python3 -m pip install --upgrade pip > install_log.txt 2>&1
+python3 -m pip install -r requirements.txt >> install_log.txt 2>&1 || { echo "[오류] 필수 라이브러리 설치에 실패했습니다. 기록의 마지막 부분:"; tail -25 install_log.txt; echo "Python $(python3 -V) — 3.12 또는 3.13이 아니면 3.13을 설치한 뒤 다시 실행하세요. install_log.txt를 보내 주시면 원인을 확인할 수 있습니다."; exit 1; }
+python3 -m pip install -r requirements-optional.txt >> install_log.txt 2>&1 || echo "[안내] 선택 라이브러리 일부를 설치하지 못했습니다. 분석 결과는 같고 속도만 느려질 수 있습니다."
 
 echo "[2/4] 지난 시점 분석 (2025-09-30까지, 사후 검증용, 약 15분)..."
 if python3 run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30; then

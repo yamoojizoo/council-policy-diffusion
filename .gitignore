@@ -8,3 +8,4 @@ output_*/
 __pycache__/
 *.pyc
 .DS_Store
+install_log.txt
