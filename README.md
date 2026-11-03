@@ -28,8 +28,10 @@
 ```bash
 pip install -r requirements.txt
 # 국회도서관 국가학술정보 클라우드에서 받은 회의록 JSON을 data/ 아래에 둔다 (하위 폴더, .json/.json.gz/.jsonl 허용)
-python run_pipeline.py --data_dir data --out_dir output
+python run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30   # 사후 검증용 지난 시점 분석
+python run_pipeline.py --data_dir data --out_dir output --prev_out output_prev     # 최종 분석
 ```
+더블클릭 실행: 윈도우 `run_windows.bat`, 맥 `run_mac.command`가 설치부터 두 단계 분석, 대시보드 열기까지 한 번에 진행한다(약 30분). 사후 검증이 필요 없으면 두 번째 줄만 `--prev_out` 없이 실행하면 된다(약 15분).
 
 주요 옵션
 

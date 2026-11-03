@@ -423,7 +423,13 @@ pip install -r requirements.txt
 # data/ 아래에 회의록 JSON 배치 (하위 폴더 허용)
 python run_pipeline.py --data_dir data --out_dir output
 ```
-더블클릭 실행: 윈도우 `run_windows.bat`, 맥 `run_mac.command` (설치 → 분석 → 대시보드 열기까지 자동)
+더블클릭 실행: 윈도우 `run_windows.bat`, 맥 `run_mac.command`. 설치 → 2025.9.30 시점 분석(`output_prev`) → 전체 분석과 사후 검증(`output`, `--prev_out output_prev`) → 대시보드 열기까지 자동으로 진행한다(약 30분). Python이나 `data/` 폴더가 없으면 바로 안내하고 멈추며, 시점 분석이 실패해도 최종 분석은 사후 검증 없이 계속한다.
+
+제출 결과와 같은 순서로 직접 실행하려면:
+```bash
+python run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30
+python run_pipeline.py --data_dir data --out_dir output --prev_out output_prev
+```
 
 | 옵션 | 기본값 | 설명 |
 |---|---|---|
