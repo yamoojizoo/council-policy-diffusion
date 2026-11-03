@@ -1,7 +1,10 @@
 #!/bin/bash
 cd "$(dirname "$0")"
 command -v python3 >/dev/null || { echo "[오류] python3를 찾을 수 없습니다. Python 3.10 이상을 설치한 뒤 다시 실행하세요."; exit 1; }
-[ -d data ] || { echo "[오류] data 폴더가 없습니다. 회의록 JSON을 data 폴더에 넣은 뒤 다시 실행하세요."; exit 1; }
+mkdir -p data
+N=$(find data -type f \( -name "*.json" -o -name "*.json.gz" -o -name "*.jsonl" \) | wc -l | tr -d ' ')
+[ "$N" -gt 0 ] || { echo "[오류] data 폴더에 회의록 파일이 없습니다. 아래 폴더에 회의록 JSON을 넣은 뒤 다시 실행하세요."; echo "$(pwd)/data"; open data; exit 1; }
+echo "회의록 파일 ${N}개를 찾았습니다."
 
 echo "[1/4] 라이브러리 설치 중..."
 python3 -m pip install -r requirements.txt || { echo "[오류] 라이브러리 설치에 실패했습니다. 인터넷 연결을 확인하세요."; exit 1; }
