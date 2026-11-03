@@ -10,6 +10,7 @@ import json
 import os
 import re
 
+import numpy as np
 import pandas as pd
 
 from .regions import canon_assembly
@@ -37,12 +38,12 @@ def _to_dict(r):
 
 def load_records(path):
     opener = gzip.open if path.endswith(".gz") else open
-    with opener(path, "rt", encoding="utf-8-sig") as f:
-        raw = f.read()
-    try:
-        obj = json.loads(raw)
-    except json.JSONDecodeError:
-        obj = [json.loads(line) for line in raw.splitlines() if line.strip()]
+    try:   # 파일 전체를 문자열로 한 번 더 들고 있지 않도록 바로 파싱한다(메모리 절약)
+        with opener(path, "rt", encoding="utf-8-sig") as f:
+            obj = json.load(f)
+    except json.JSONDecodeError:   # JSON Lines
+        with opener(path, "rt", encoding="utf-8-sig") as f:
+            obj = [json.loads(line) for line in f if line.strip()]
     if isinstance(obj, dict):
         lists = [v for v in obj.values() if isinstance(v, list)]
         obj = lists[0] if lists else [obj]
@@ -56,6 +57,7 @@ def load_records(path):
 _SCRIPT = re.compile(r"<(script|style)\b.*?</\1>", re.S | re.I)
 _COMMENT = re.compile(r"<!--.*?-->", re.S)
 _TAG = re.compile(r"<[^>]+>")
+_SURR = re.compile("[\ud800-\udfff]")
 
 
 def html_to_lines(html):
@@ -161,14 +163,45 @@ def _parse_file(args):
     return fp, out
 
 
+def _avail_gb():
+    """사용 가능한 메모리(GB). 알 수 없으면 None."""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class MS(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = MS()
+            m.dwLength = ctypes.sizeof(MS)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullAvailPhys / 2**30
+        return os.sysconf("SC_AVPHYS_PAGES") * os.sysconf("SC_PAGE_SIZE") / 2**30
+    except Exception:
+        return None
+
+
+def _n_workers():
+    """회의록 파일 하나(최대 약 200MB)를 읽는 데 프로세스당 1.5GB 안팎이 들어, 남은 메모리에 맞춰 병렬 수를 정한다."""
+    cpu = os.cpu_count() or 2
+    gb = _avail_gb()
+    by_mem = 2 if gb is None else int((gb - 3) // 1.5)   # 본 프로세스가 쓸 3GB는 남겨 둔다
+    return max(1, min(cpu, 4, by_mem))
+
+
 def build_tables(data_dir, min_len=15, workers=None):
     files = sorted(sum((glob.glob(os.path.join(data_dir, "**", p), recursive=True)
                         for p in ("*.json", "*.json.gz", "*.jsonl")), []))
     if not files:
         raise FileNotFoundError(f"{data_dir} 아래에 JSON 파일이 없습니다.")
     from multiprocessing import Pool
-    workers = workers or max(1, (os.cpu_count() or 2))
-    docs, utts, seen = [], [], set()
+    workers = workers or _n_workers()
+    print(f"  회의록 읽기: 병렬 {workers}개 (사용 가능 메모리 {(_avail_gb() or 0):.1f}GB 기준)", flush=True)
+    docs, seen = [], set()
+    U = dict(doc_id=[], utt_idx=[], speaker=[], text=[])   # 열별 리스트(행별 dict·tuple보다 메모리가 훨씬 적다)
     with Pool(workers) as pool:
         for fp, recs in pool.imap(_parse_file, [(f, min_len) for f in files]):
             for asm_raw, com, mname, date_s, us, h in recs:
@@ -181,12 +214,27 @@ def build_tables(data_dir, min_len=15, workers=None):
                 docs.append(dict(doc_id=doc_id, assembly=canon_assembly(asm_raw or ""), assembly_raw=asm_raw,
                                  committee=com, minutes_name=mname,
                                  date=pd.to_datetime(date_s[:8], format="%Y%m%d", errors="coerce"),
-                                 source_file=os.path.basename(fp)))
-                utts.extend(dict(doc_id=doc_id, utt_idx=i, speaker=spk, text=t) for i, spk, t in us)
-            print(f"  {os.path.basename(fp)}: 누적 회의록 {len(docs):,}건 / 발언 {len(utts):,}개", flush=True)
+                                 source_file=_SURR.sub("\ufffd", os.path.basename(fp))))   # 한글 파일명이 깨진 환경 대비
+                for i, spk, t in us:
+                    U["doc_id"].append(doc_id); U["utt_idx"].append(i); U["speaker"].append(spk); U["text"].append(t)
+            print(f"  {os.path.basename(fp)}: 누적 회의록 {len(docs):,}건 / 발언 {len(U["text"]):,}개", flush=True)
     docs = pd.DataFrame(docs)
-    utts = pd.DataFrame(utts).merge(docs[["doc_id", "assembly", "committee", "minutes_name", "date"]],
-                                    on="doc_id", how="left")
-    utts = utts.dropna(subset=["date"]).sort_values(["date", "doc_id", "utt_idx"]).reset_index(drop=True)
-    utts["utt_id"] = utts.index
-    return docs, utts
+    # 메모리 절약: 300만 행 표를 merge·정렬로 여러 번 복사하지 않고, 회의록 정보는 doc_id 위치로 붙인 뒤 한 번만 재배열한다.
+    # (결과는 merge → dropna → sort_values(date, doc_id, utt_idx)와 같다)
+    ids = np.asarray(U.pop("doc_id"), dtype="int64")
+    uidx = np.asarray(U.pop("utt_idx"), dtype="int64")
+    ddate = docs["date"].to_numpy()
+    keep = np.flatnonzero(~pd.isna(ddate[ids]))
+    order = keep[np.lexsort((uidx[keep], ids[keep], ddate[ids[keep]].astype("int64")))]
+    # 문자열은 정렬된 순서로 한 번만 변환한다(큰 문자열 열을 다시 복사하지 않음)
+    cols = {"doc_id": ids[order], "utt_idx": uidx[order]}
+    for c in ("speaker", "text"):
+        L = U.pop(c)
+        cols[c] = pd.Series([L[k] for k in order], dtype="str")
+        del L
+    u = pd.DataFrame(cols)
+    for c in ("assembly", "committee", "minutes_name", "date"):
+        u[c] = docs[c].to_numpy()[u["doc_id"].to_numpy()]
+    u["date"] = u["date"].astype(docs["date"].dtype)
+    u["utt_id"] = u.index
+    return docs, u

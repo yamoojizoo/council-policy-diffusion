@@ -12,14 +12,14 @@ python3 -m pip install -r requirements.txt >> install_log.txt 2>&1 || { echo "[�
 python3 -m pip install -r requirements-optional.txt >> install_log.txt 2>&1 || echo "[안내] 선택 라이브러리 일부를 설치하지 못했습니다. 분석 결과는 같고 속도만 느려질 수 있습니다."
 
 echo "[2/4] 지난 시점 분석 (2025-09-30까지, 사후 검증용, 약 15분)..."
-if python3 run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30; then
+if python3 run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30 --cache cache; then
   PREV="--prev_out output_prev"
 else
   echo "[경고] 지난 시점 분석에 실패해 사후 검증 없이 최종 분석만 진행합니다."; PREV=""
 fi
 
 echo "[3/4] 최종 분석 (전체 기간, 약 15분)..."
-python3 run_pipeline.py --data_dir data --out_dir output $PREV || { echo "[오류] 분석 중 문제가 생겼습니다. 위 메시지를 확인하세요."; exit 1; }
+python3 run_pipeline.py --data_dir data --out_dir output $PREV --cache cache || { echo "[오류] 분석 중 문제가 생겼습니다. 위 메시지를 확인하세요."; exit 1; }
 
 echo "[4/4] 대시보드 열기"
 open output/dashboard.html

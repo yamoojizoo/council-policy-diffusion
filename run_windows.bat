@@ -36,12 +36,12 @@ if errorlevel 1 echo [안내] 선택 라이브러리 일부를 설치하지 못�
 
 echo [2/4] 지난 시점 분석: 2025-09-30까지, 사후 검증용, 약 15분...
 set "PREV=--prev_out output_prev"
-"%PYEXE%" run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30
+"%PYEXE%" run_pipeline.py --data_dir data --out_dir output_prev --until 2025-09-30 --cache cache
 if errorlevel 1 set "PREV="
 if not defined PREV echo [경고] 지난 시점 분석에 실패해 사후 검증 없이 최종 분석만 진행합니다.
 
 echo [3/4] 최종 분석: 전체 기간, 약 15분...
-"%PYEXE%" run_pipeline.py --data_dir data --out_dir output %PREV%
+"%PYEXE%" run_pipeline.py --data_dir data --out_dir output %PREV% --cache cache
 if errorlevel 1 goto :err_run
 
 echo [4/4] 대시보드 열기

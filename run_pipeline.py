@@ -27,6 +27,31 @@ def load(path):
     return pd.read_parquet(path + ".parquet") if os.path.exists(path + ".parquet") else pd.read_pickle(path + ".pkl")
 
 
+def _data_signature(data_dir):
+    import glob
+    files = sorted(sum((glob.glob(os.path.join(data_dir, "**", p), recursive=True)
+                        for p in ("*.json", "*.json.gz", "*.jsonl")), []))
+    return [[os.path.relpath(f, data_dir), os.path.getsize(f), int(os.path.getmtime(f))] for f in files]
+
+
+def cached_tables(data_dir, cache):
+    """회의록 읽기 결과를 cache 폴더에 보관한다. data 파일 목록·크기·수정 시각이 같을 때만 재사용."""
+    if not cache:
+        return build_tables(data_dir)
+    import json
+    os.makedirs(cache, exist_ok=True)
+    sig, sp = _data_signature(data_dir), os.path.join(cache, "signature.json")
+    if os.path.exists(sp) and json.load(open(sp, encoding="utf-8")) == sig and \
+            any(os.path.exists(os.path.join(cache, "utterances" + e)) for e in (".parquet", ".pkl")):
+        log(f"회의록 읽기 결과 재사용({cache}): data 파일 {len(sig)}개가 지난번과 같음")
+        return load(os.path.join(cache, "docs")), load(os.path.join(cache, "utterances"))
+    docs, utts = build_tables(data_dir)
+    save(docs, os.path.join(cache, "docs"))
+    save(utts, os.path.join(cache, "utterances"))
+    json.dump(sig, open(sp, "w", encoding="utf-8"))
+    return docs, utts
+
+
 def log(msg, t0=[time.time()]):
     print(f"[{time.time() - t0[0]:7.1f}s] {msg}", flush=True)
 
@@ -51,6 +76,8 @@ def main():
     ap.add_argument("--external", default="", help="시도별 외부 통계 CSV (예: external/region_stats.csv). 비우면 사용 안 함")
     ap.add_argument("--until", default="", help="이 날짜(YYYY-MM-DD)까지의 회의록만 사용. 과거 시점 재현·갱신 시연용")
     ap.add_argument("--prev_out", default="", help="지난 분석 결과 폴더. 주면 무엇이 바뀌었고 지난 예측이 맞았는지 update.md로 정리")
+    ap.add_argument("--cache", default="", help="전처리(회의록 읽기) 결과를 보관할 폴더. 같은 data 파일이면 다시 읽지 않는다. "
+                                               "두 번 실행할 때(지난 시점 분석 + 최종 분석) 시간과 메모리를 아낀다")
     ap.add_argument("--reuse", action="store_true", help="work/ 에 저장된 전처리 결과 재사용")
     a = ap.parse_args()
 
@@ -62,7 +89,7 @@ def main():
         docs, utts = load(f"{work}/docs"), load(f"{work}/utterances")
         log("전처리 결과 재사용")
     else:
-        docs, utts = build_tables(a.data_dir)
+        docs, utts = cached_tables(a.data_dir, a.cache)
         save(docs, f"{work}/docs")
         save(utts, f"{work}/utterances")
     if a.until:

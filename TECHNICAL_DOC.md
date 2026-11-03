@@ -440,6 +440,7 @@ python run_pipeline.py --data_dir data --out_dir output --prev_out output_prev
 | `--reuse` | off | 전처리·키워드 후보 결과 재사용 |
 | `--embed_model` | `""` (TF-IDF) | 선택: 문장 임베딩 모델로 동의 표현 병합(예: `jhgan/ko-sroberta-multitask`). 제출 결과는 기본값(문자 n-gram TF-IDF)으로 생성 |
 | `--prev_out` | (사용 안 함) | 지난 분석 결과 폴더. 주면 갱신 보고서 `update.md`·`update.json`을 만들고 대시보드에 변화 요약을 붙임 (3.9) |
+| `--cache` | (사용 안 함) | 회의록 읽기 결과 보관 폴더. data 파일 목록·크기·수정 시각이 같으면 다시 읽지 않음(더블클릭 실행은 `cache` 사용) |
 | `--until` | (전체) | 이 날짜까지의 회의록만 분석. 과거 시점 재현·갱신 시연용 (3.9) |
 | `--external` | (사용 안 함) | 시도별 외부 통계 CSV. 예: `external/region_stats.csv` (3.8 실험) |
 
