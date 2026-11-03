@@ -113,7 +113,7 @@ def search_corpus(mentions, ids, per_asm=3, per_issue=40):
     return out
 
 
-def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None, mentions=None):
+def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n_utts, asm_keywords=None, mentions=None, upd=None):
     iss_map = {int(r["issue_id"]): r for r in issues.to_dict("records")}
     pred_by = {}
     if len(preds):
@@ -217,7 +217,23 @@ def build_payload(docs, issues, spread, preds, metrics, weights, ranked_novel, n
                   n_ev=sum(t["ev"] in ("strong", "medium") for i in out for t in i["tl"])),
         names=ASSEMBLY_NAME, tiles=TILE, geo=GEO, issues=out, innovation=innovation, profiles=profiles, nbr={a: v["nbr"] for a, v in REGIONS.items()},
         lead=lead, both=both, explicit=explicit, metrics=m, weights=weights or {}, fields=[f for f, _ in FIELDS] + ["복합"], texts=search_corpus(mentions, list(ranked_novel)),
+        upd=_upd_summary(upd),
         rx=dict(alias={a: rx.pattern for a, rx in ALIAS_RE.items()}, cue=CUE.pattern, window=REF_WINDOW))
+
+
+def _upd_summary(u):
+    """갱신 보고서(update.py) 중 대시보드에 보일 부분만 추린다."""
+    if not u:
+        return None
+    c = u.get("check") or {}
+    return dict(sim=u.get("simulated", False), n_ji=u.get("n_joined_issues", len(u["joined"])), prev_d1=u["prev_d1"], d1=u["d1"], days=u["days"], new_docs=u["new_docs"],
+                check=dict(n=c.get("n", 0), n_hit=c.get("n_hit", 0), base=c.get("base"), auc=c.get("auc"),
+                           p10=c.get("p_at_10"), tiers=c.get("tiers", {}), ex=c.get("examples", [])[:6]),
+                joined=[dict(id=x["id"], label=x["label"], before=x["before"], after=x["after"],
+                             new=[[t["a"], t["tier"]] for t in x["new"]]) for x in u["joined"][:12]],
+                n_join=u["n_join"], n_join_pred=u["n_join_predicted"],
+                emerged=[dict(id=e["id"], label=e["label"], a=e["origin"], date=e["date"], n=e["n"]) for e in u["emerged"][:8]],
+                stage_up=[dict(id=x["id"], label=x["label"], frm=x["frm"], to=x["to"]) for x in u["stage_up"][:8]])
 
 
 def _n_ranked(issues, spread, d0):

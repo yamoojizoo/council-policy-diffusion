@@ -329,6 +329,20 @@ mark.m-cue{background:color-mix(in srgb,var(--d-orange) 26%,transparent)}
 .pal li[aria-selected="true"]{background:color-mix(in srgb,var(--d-blue) 14%,transparent)}
 .pal .ft{display:flex;gap:16px;padding:10px 22px;font-size:12px;color:var(--ink-3);border-top:1px solid var(--hair-2)}
 @media (max-width:760px){.kbtn kbd{display:none}.kbtn .kl{display:none}.pal .ft{display:none}}
+.upd-figs{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;margin-bottom:24px}
+.upd-figs .n{font-size:30px;font-weight:600;letter-spacing:-0.03em;font-variant-numeric:tabular-nums}.upd-figs .t{font-size:14px;color:var(--ink-2);margin-top:4px}
+.tierbars{display:grid;gap:10px;margin:6px 0 4px}
+.tb{display:grid;grid-template-columns:52px minmax(0,1fr) 150px;gap:12px;align-items:center;font-size:14px}
+.tb .bar{height:10px}.tb .v{color:var(--ink-2);font-variant-numeric:tabular-nums;text-align:right}
+.ujoin{display:grid;gap:8px;margin-top:8px}
+.uj{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;padding:12px 14px;border-radius:14px;background:var(--bg);cursor:pointer}
+.uj:hover,.uj:focus-visible{background:var(--q0);outline:none}
+.uj .nm{font-weight:600}.uj .cnt{color:var(--ink-2);font-size:14px;font-variant-numeric:tabular-nums}
+.uj .as{grid-column:1/-1;display:flex;flex-wrap:wrap;gap:6px}
+.uj .as span{font-size:12px;padding:2px 8px;border-radius:999px;background:var(--surface);color:var(--ink-2)}
+.uj .as span.hi{background:color-mix(in srgb,var(--d-orange) 22%,var(--surface));color:var(--ink)}
+.uj .as span.md{background:color-mix(in srgb,var(--d-blue) 16%,var(--surface));color:var(--ink)}
+@media (max-width:760px){.upd-figs{grid-template-columns:1fr}.tb{grid-template-columns:44px minmax(0,1fr) 110px}}
 .sr{padding:14px 4px;border-top:1px solid var(--hair-2);cursor:pointer;border-radius:8px}
 .sr:first-of-type{border-top:0}.sr:hover{background:var(--surface-2)}
 .sr .sh{display:flex;gap:6px 12px;flex-wrap:wrap;align-items:baseline;font-size:13px;color:var(--ink-2);margin-bottom:4px}
@@ -595,6 +609,34 @@ function countUp(node, text){const m=String(text).match(/^([\d,]+(?:\.\d+)?)(.*)
   const fmt=x=>dec?x.toFixed(dec):Math.round(x).toLocaleString();node.textContent=fmt(0)+rest;
   const step=now=>{const k=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-k,3);node.textContent=fmt(target*e)+rest;if(k<1)requestAnimationFrame(step);else node.textContent=text;};requestAnimationFrame(step);}
 
+// 갱신 이후 변화: 지난 분석 기준일 이후 새 회의록에서 무엇이 바뀌었고, 지난번 예측이 맞았는지
+function updateBlock(U){const s=el("section",{class:"block"});s.appendChild(el("h2",{},`${fmtD(U.prev_d1)} 분석 이후 달라진 것`));
+  s.appendChild(el("p",{class:"intro"},`새 회의록 ${U.new_docs.toLocaleString()}건(${U.days}일)을 더해 다시 분석했습니다. 지난번 예측은 그때의 이슈 사전을 새 회의록에 그대로 적용해 맞았는지 확인했습니다.`));
+  if(U.sim)s.appendChild(el("p",{class:"hint",style:"margin:-18px 0 24px;max-width:46em"},`갱신 과정 시연: 같은 제공 데이터를 ${fmtD(U.prev_d1)}에서 잘라 분석한 결과를 '지난 분석'으로 두었습니다. 그때의 예측 모델은 이후 회의록을 보지 않았으므로, 아래 적중률은 실제 사후 검증에 해당합니다.`));
+  const c=U.check,P=el("div",{class:"panel"});
+  const f=el("div",{class:"upd-figs"});
+  [[`${U.n_join}곳`,`새로 의제를 다룬 의회 (이슈 ${U.n_ji}개)`],
+   [`${U.n_join_pred}곳`,"그중 지난번 예측에서 '높음'·'보통'이었던 곳"],
+   [c.p10!=null?(c.p10*100).toFixed(1)+"%":"–",`지난번 점수 상위 10%의 적중률 (평균 ${c.base!=null?(c.base*100).toFixed(1)+"%":"–"})`]]
+   .forEach(([n,t])=>{const d=el("div");d.append(el("div",{class:"n"},n),el("div",{class:"t"},t));f.appendChild(d);});P.appendChild(f);
+  if(c.n){P.appendChild(el("div",{class:"hint",style:"margin-bottom:6px"},"지난번 예측 등급별로 새 기간에 실제로 다룬 비율"));const tb=el("div",{class:"tierbars"});
+    const mx=Math.max(...Object.values(c.tiers).map(g=>g.rate),0.001);
+    ["높음","보통","낮음"].forEach(t=>{const g=c.tiers[t];if(!g)return;const r=el("div",{class:"tb"});const b=el("div",{class:"bar"});const i=el("i");i.style.width=(g.rate/mx*100)+"%";i.style.background=t==="높음"?"var(--d-orange)":t==="보통"?"var(--d-blue)":"var(--d-neutral)";b.appendChild(i);
+      r.append(el("b",{},t),b,el("span",{class:"v"},`${(g.rate*100).toFixed(1)}%  (${g.hit}/${g.n.toLocaleString()})`));tb.appendChild(r);});P.appendChild(tb);
+    P.appendChild(el("p",{class:"hint",style:"margin:8px 0 0"},`예측 기간은 180일인데 새 기간은 ${U.days}일이라 비율 자체는 낮게 나옵니다. 등급 순서대로 비율이 높은지가 핵심입니다.${c.auc!=null?` 순위 정확도(ROC-AUC) ${c.auc.toFixed(3)}.`:""}`));}
+  s.appendChild(P);
+  if(U.joined.length){const P2=el("div",{class:"panel",style:"margin-top:16px"});P2.appendChild(el("h3",{style:"margin:0 0 4px"},"확산이 이어진 이슈"));
+    P2.appendChild(el("p",{class:"hint",style:"margin:0"},"새로 다룬 의회입니다. 주황은 지난번 예측 '높음', 파랑은 '보통'이었던 곳입니다."));
+    const w=el("div",{class:"ujoin"});U.joined.slice(0,8).forEach(x=>{const r=el("div",{class:"uj",tabindex:"0",role:"button"});
+      r.append(el("div",{class:"nm"},x.label),el("div",{class:"cnt"},`${x.before}곳 → ${x.after}곳`));const as=el("div",{class:"as"});
+      x.new.forEach(([a,t])=>as.appendChild(el("span",{class:t==="높음"?"hi":t==="보통"?"md":""},short(a))));r.appendChild(as);
+      const open=()=>{if(byId[x.id])go("issues",{issue:x.id});};r.onclick=open;r.onkeydown=e=>{if(e.key==="Enter")open();};w.appendChild(r);});
+    P2.appendChild(w);s.appendChild(P2);}
+  if(U.emerged.length){const P3=el("div",{class:"panel",style:"margin-top:16px"});P3.appendChild(el("h3",{style:"margin:0 0 10px"},"새로 등장한 이슈"));
+    const ch=el("div",{class:"chips"});U.emerged.forEach(e=>{const b=el("button",{class:"chip"});b.append(el("b",{},e.label),el("span",{},`${short(e.a)} ${e.date.slice(2,7).replace("-",".")} · ${e.n}곳`));b.onclick=()=>{if(byId[e.id])go("issues",{issue:e.id});};ch.appendChild(b);});
+    P3.appendChild(ch);s.appendChild(P3);}
+  return s;}
+
 // 분석 깔때기: 원자료에서 근거 문장까지 몇 개씩 남는지
 function funnelBlock(){const s=el("section",{class:"block"});s.appendChild(el("h2",{},"회의록에서 확산 근거까지"));
   s.appendChild(el("p",{class:"intro"},"단계마다 기준을 통과한 것만 다음 단계로 넘어갑니다. 막대 길이는 로그 눈금입니다."));
@@ -654,6 +696,7 @@ function renderOverview(){
    [String(B.length),"개 이슈는 여러 의회가 거의 동시에 다뤘습니다"],[lift?lift.toFixed(1)+"배":"–","무작위로 고를 때보다 다음 확산 의회를 더 잘 맞혔습니다"]]
    .forEach(([n,t])=>{const f=el("div",{class:"fig"});const nn=el("div",{class:"n"},n);f.append(nn,el("div",{class:"t"},t));figs.appendChild(f);if(!counted)countUp(nn,n);});
   counted=true;v.appendChild(figs);
+  if(D.upd)v.appendChild(updateBlock(D.upd));
   v.appendChild(funnelBlock());
   v.appendChild(timeMachine());
 

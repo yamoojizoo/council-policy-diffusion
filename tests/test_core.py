@@ -46,8 +46,9 @@ def test_question_reference_is_medium():
 
 def test_same_day_is_not_precedence_and_needs_time_claim():
     # 같은 날 처음 다룬 의회는 '먼저 했다'고 볼 수 없다. 시점 진술(이미, ~부터)도 없으면 참조로 인정하지 않는다.
-    rows = [mention("충남", "2024-04-01", "청소년 버스비 지원을 검토합니다."),
-            mention("전북", "2024-04-01", "충남처럼 청소년 버스비 지원을 하면 좋겠습니다.")]
+    # 문서 번호를 고정해 해시 난수(PYTHONHASHSEED)와 무관하게 충남이 먼저 정렬되게 한다
+    rows = [mention("충남", "2024-04-01", "청소년 버스비 지원을 검토합니다.", doc=1),
+            mention("전북", "2024-04-01", "충남처럼 청소년 버스비 지원을 하면 좋겠습니다.", doc=2)]
     assert grades(rows)["전북"] == "temporal"
 
 
@@ -126,3 +127,11 @@ def test_bass_fit_recovers_parameters_on_simulated_data():
         segs.append(out)
     ph, qh = HY._bass_fit(segs, M)
     assert abs(ph - p) < 0.006 and abs(qh - q) < 0.03
+
+
+def test_update_helpers():
+    from src.update import _auc, stage_of
+    assert stage_of(2) == 0 and stage_of(3) == 1 and stage_of(9) == 2 and stage_of(15) == 3
+    assert _auc([1, 0, 1, 0], [0.9, 0.1, 0.8, 0.2]) == 1.0
+    assert abs(_auc([1, 0, 1, 0], [0.1, 0.9, 0.2, 0.8])) < 1e-9
+    assert _auc([1, 1], [0.3, 0.4]) is None

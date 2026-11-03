@@ -53,6 +53,13 @@ python run_pipeline.py --data_dir data --out_dir output
 - `output/issue_dictionary.json`: 이슈 사전(대표 명칭, 유사 표현, 매칭 표면형)
 - `output/work/`: 중간 산출물(발언 테이블, 언급 색인)
 
+### 새 회의록이 들어왔을 때 (갱신)
+```bash
+mv output output_prev                      # 지난 결과 보관
+python run_pipeline.py --data_dir data --out_dir output --prev_out output_prev
+```
+`output/update.md`에 새 이슈, 새로 다룬 의회, 확산 단계 변화, **지난번 예측이 맞았는지**가 정리되고 대시보드 개요에도 표시된다. 제공 데이터를 2025.9.30에서 잘라 시연한 결과, 지난번 '높음' 예측의 이후 92일 적중률은 18.4%로 평균(9.6%)의 1.9배, ROC-AUC 0.663이었다(기술문서 3.9).
+
 ### 스모크 테스트 (가짜 데이터)
 ```bash
 python tests/make_synthetic.py data_synth

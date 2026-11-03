@@ -49,6 +49,8 @@ def main():
     ap.add_argument("--merge", default="config/merge_issues.txt", help="분석자 검토 후 같은 이슈로 묶을 표현 목록")
     ap.add_argument("--issue_start", default="config/issue_start.txt", help="특정 사건 의제의 시작일(그 이전의 다른 사건 언급 제외)")
     ap.add_argument("--external", default="", help="시도별 외부 통계 CSV (예: external/region_stats.csv). 비우면 사용 안 함")
+    ap.add_argument("--until", default="", help="이 날짜(YYYY-MM-DD)까지의 회의록만 사용. 과거 시점 재현·갱신 시연용")
+    ap.add_argument("--prev_out", default="", help="지난 분석 결과 폴더. 주면 무엇이 바뀌었고 지난 예측이 맞았는지 update.md로 정리")
     ap.add_argument("--reuse", action="store_true", help="work/ 에 저장된 전처리 결과 재사용")
     a = ap.parse_args()
 
@@ -63,6 +65,14 @@ def main():
         docs, utts = build_tables(a.data_dir)
         save(docs, f"{work}/docs")
         save(utts, f"{work}/utterances")
+    if a.until:
+        cut = pd.Timestamp(a.until)
+        docs = docs[docs.date <= cut].reset_index(drop=True)
+        utts = utts[utts.date <= cut].reset_index(drop=True)
+        log(f"분석 기준일 {a.until}까지로 제한")
+        save(docs, f"{work}/docs")      # 다음 갱신 때 이 폴더를 '지난 결과'로 쓰므로 잘라 낸 상태로 저장
+        save(utts, f"{work}/utterances")
+        open(f"{work}/until.txt", "w").write(a.until)   # 과거 시점을 잘라 만든 결과임을 표시(갱신 시연 안내에 사용)
     log(f"회의록 {len(docs):,}건 / 발언 {len(utts):,}개 / 의회 {docs.assembly.nunique()}곳 "
         f"({docs.date.min():%Y-%m-%d}~{docs.date.max():%Y-%m-%d})")
 
@@ -126,12 +136,25 @@ def main():
     HY.write(hres, f"{a.out_dir}/hypotheses.md", f"{a.out_dir}/hypotheses.json")
     log(f"이론 가설 검증: {a.out_dir}/hypotheses.md")
 
+    upd = None
+    if a.prev_out:
+        from src import update as UP
+        try:
+            upd = UP.compare(UP.load_prev(a.prev_out), docs, utts, issues, spread,
+                             rank_issues(issues, spread, d0=d0), set(novel))
+            UP.write(upd, f"{a.out_dir}/update.md", f"{a.out_dir}/update.json")
+            c = upd["check"]
+            log(f"갱신 보고서: {a.out_dir}/update.md (새 회의록 {upd['new_docs']:,}건, 확산 {upd['n_join']}곳"
+                + (f", 지난 예측 AUC {c['auc']}" if c.get("auc") is not None else "") + ")")
+        except Exception as e:   # 비교 실패가 본 분석 산출물을 막지 않게 한다
+            log(f"갱신 보고서 생략: {type(e).__name__}: {e}")
+
     order = write_report(f"{a.out_dir}/report.md", f"{a.out_dir}/results.json", docs, utts, issues, mentions,
                          spread, preds, metrics, weights, top_n=a.top_n, hres=hres)
     log(f"보고서 작성: {a.out_dir}/report.md (이슈 {len(order)}개)")
     write_dashboard(f"{a.out_dir}/dashboard.html",
                     build_payload(docs, issues, spread, preds, metrics, weights, novel, len(utts),
-                                  assembly_keywords(mentions, issues), mentions))
+                                  assembly_keywords(mentions, issues), mentions, upd=upd))
     log(f"대시보드 작성: {a.out_dir}/dashboard.html (이슈 {len(novel)}개)")
 
 if __name__ == "__main__":
