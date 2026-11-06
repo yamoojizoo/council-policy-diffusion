@@ -706,7 +706,7 @@ function renderOverview(){
     const c1=el("div");c1.append(el("div",{class:"nm"},i.label),el("div",{class:"sm"},`${full(i.tl[0].a)}에서 ${fmtYM(i.tl[0].date)} 처음 관측`));
     const c2=el("div",{class:"hide-sm"});c2.appendChild(spark(i));
     const c3=el("div");c3.append(el("div",{class:"big"},`${i.n_asm}곳`),el("div",{class:"sm"},"관측 의회"));
-    const c4=el("div",{class:"hide-sm"});c4.append(el("div",{class:"big"},String(i.n_exp)),el("div",{class:"sm"},"명시적 참조"));
+    const c4=el("div",{class:"hide-sm"});c4.append(el("div",{class:"big"},String(i.n_exp)),el("div",{class:"sm"},"선례 직접 언급"));
     r.append(c1,c2,c3,c4,el("div",{class:"chev"},"›"));const open=()=>go("issues",{issue:i.id});r.onclick=open;r.onkeydown=e=>{if(e.key==="Enter")open();};rows.appendChild(r);});
   s1.appendChild(rows);v.appendChild(s1);
 
@@ -823,7 +823,7 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode===
     : `${fmtD(o.date)} 무렵 여러 의회가 짧은 기간 안에 함께 다루기 시작했습니다. 공통의 외부 계기에 반응한 것으로 보고, 의회 사이의 전달 경로는 추정하지 않습니다.`;
   wrap.appendChild(el("p",{class:"summary"},sum));
   if(i.variants.length)wrap.appendChild(el("p",{class:"summary",style:"font-size:14px;margin-top:-14px"},"같은 이슈로 묶은 표현: "+i.variants.join(", ")));
-  const stats=el("div",{class:"stats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.ord_asm.length}곳`,"조례안으로 다룬 의회"],[`${i.n_exp}곳`,"명시적 참조"],[fmtD(o.date),"최초 관측"]].forEach(([n,t])=>{const s=el("div",{class:"stat"});s.append(el("div",{class:"n"},n),el("div",{class:"t"},t));stats.appendChild(s);});
+  const stats=el("div",{class:"stats"});[[`${i.n_asm}곳`,"관측 의회"],[`${i.ord_asm.length}곳`,"조례안으로 다룬 의회"],[`${i.n_exp}곳`,"선례 직접 언급 (결정적 증거·명시적 참조)"],[fmtD(o.date),"최초 관측"]].forEach(([n,t])=>{const s=el("div",{class:"stat"});s.append(el("div",{class:"n"},n),el("div",{class:"t"},t));stats.appendChild(s);});
   wrap.appendChild(stats);
   wrap.appendChild(stageBox(i));
   if(i.upstream)wrap.appendChild(el("div",{class:"upnote"},"초기 발언에 법령 개정이나 중앙부처를 언급한 비중이 높아, 상위 법령이나 정부 정책에 따른 동시 대응일 가능성도 있습니다."));
@@ -834,7 +834,7 @@ function renderDetail(){const box=$("#detail");box.replaceChildren();if(qmode===
   const ko=el("span"),wo=el("i",{class:"sw"});wo.style.border="2px solid var(--ink)";ko.append(wo,document.createTextNode("최초 관측"));k1.appendChild(ko);
   const kp=el("span"),wp=el("i",{class:"sw"});wp.style.border="2px dashed var(--d-orange)";kp.append(wp,document.createTextNode("확산 예측"));k1.appendChild(kp);p1.appendChild(k1);
   const p2=el("div",{class:"panel"});p2.append(el("h3",{},"얼마나 빨리 퍼졌나"),el("p",{class:"hint"},"논의한 의회 수의 누적 곡선입니다. 점의 색은 근거 유형을 나타냅니다."));p2.appendChild(curve(i));
-  const k2=el("div",{class:"keyrow"});[["var(--ink)","최초 관측"],["var(--d-blue)","명시적 참조"],["var(--d-orange)","비특정 참조"],["var(--d-neutral)","시간적 후행"]].forEach(([c,l])=>{const s=el("span"),w=el("i",{class:"ln"});w.style.background=c;s.append(w,document.createTextNode(l));k2.appendChild(s);});p2.appendChild(k2);
+  const k2=el("div",{class:"keyrow"});[["var(--ink)","최초 관측"],["var(--d-blue)","결정적 증거·명시적 참조"],["var(--d-orange)","비특정 참조"],["var(--d-neutral)","시간적 후행"]].forEach(([c,l])=>{const s=el("span"),w=el("i",{class:"ln"});w.style.background=c;s.append(w,document.createTextNode(l));k2.appendChild(s);});p2.appendChild(k2);
   p2.appendChild(el("h3",{style:"margin-top:22px;font-size:16px"},"월별 언급"));p2.appendChild(monthly(i));
   g.append(p1,p2);wrap.appendChild(g);
   // timeline
