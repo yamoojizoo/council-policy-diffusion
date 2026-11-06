@@ -129,7 +129,7 @@ pd.DataFrame([dict(순서=t["order"], 의회=t["assembly_name"], 최초관측=pd
                    회의록=t["minutes_name"]) for t in spread[case]["timeline"]])"""))
 C.append(code("""t = next(t for t in spread[case]["timeline"] if t.get("evidence") == "strong")
 r = t["explicit_refs"][0]
-print(f"{t['assembly_name']} ← {r['source']} 사례 언급 ({r.get('date')})\\n원문: {r['snippet'][:300]}")"""))
+print(f"{t['assembly_name']} ← {r['source']} 사례 언급 ({str(r.get('date'))[:10]})\\n원문: {r['snippet'][:300]}")"""))
 
 C.append(md("""## 5. 확산 예측 모델 학습과 평가
 
