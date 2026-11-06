@@ -1,0 +1,57 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><style>
+@font-face{font-family:P;src:url(/home/claude/council-diffusion/src/assets/PretendardSubset.woff2)}
+*{box-sizing:border-box;margin:0}
+html,body{width:1920px;height:1080px;overflow:hidden;background:#f5f5f7;font-family:P,"Noto Sans CJK KR",sans-serif;color:#1d1d1f;-webkit-font-smoothing:antialiased}
+#stage{position:absolute;inset:0}
+.copy{position:absolute;left:96px;top:0;bottom:0;width:560px;display:flex;flex-direction:column;justify-content:center;gap:22px}
+.eyebrow{font-size:22px;font-weight:600;color:#c55a11;letter-spacing:-0.01em}
+.head{font-size:50px;font-weight:700;line-height:1.16;letter-spacing:-0.035em;color:#1d1d1f}
+.body{font-size:25px;line-height:1.55;color:#515154;letter-spacing:-0.01em}
+.body b{color:#1d1d1f;font-weight:600}
+.why{margin-top:6px;font-size:21px;line-height:1.5;color:#1F3864;background:#e8eef7;border-radius:16px;padding:16px 20px}
+.why b{font-weight:700}
+.copy > *{opacity:0;transform:translateY(24px);transition:opacity .9s cubic-bezier(.2,.7,.2,1),transform .9s cubic-bezier(.2,.7,.2,1)}
+.copy.on > *{opacity:1;transform:none}
+.copy.on > :nth-child(2){transition-delay:.12s}.copy.on > :nth-child(3){transition-delay:.24s}.copy.on > :nth-child(4){transition-delay:.4s}
+#win{position:absolute;left:700px;top:84px;width:1150px;height:912px;border-radius:26px;overflow:hidden;background:#fff;
+ box-shadow:0 40px 90px rgba(0,0,0,.16),0 8px 24px rgba(0,0,0,.08);transition:transform 1.4s cubic-bezier(.2,.7,.2,1),opacity 1s,left 1.2s cubic-bezier(.2,.7,.2,1),top 1.2s cubic-bezier(.2,.7,.2,1),width 1.2s cubic-bezier(.2,.7,.2,1),height 1.2s cubic-bezier(.2,.7,.2,1);opacity:0;transform:translateY(40px) scale(.97)}
+#win.on{opacity:1;transform:none}
+#win iframe{border:0;width:1210px;height:960px;transform:scale(.95);transform-origin:0 0;position:absolute;left:0;top:0}
+#hl{position:absolute;border:4px solid #c55a11;border-radius:16px;box-shadow:0 0 0 9999px rgba(245,245,247,.0);opacity:0;transition:all .7s cubic-bezier(.2,.7,.2,1);pointer-events:none}
+#hl.on{opacity:1}
+#hl span{position:absolute;left:12px;top:12px;background:#c55a11;color:#fff;font-size:19px;font-weight:600;padding:6px 14px;border-radius:999px;white-space:nowrap}
+.card{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:26px;text-align:center;background:#000;color:#f5f5f7;opacity:0;transition:opacity 1s}
+.card.on{opacity:1}
+.card.light{background:#f5f5f7;color:#1d1d1f}
+.card .big{font-size:96px;font-weight:700;letter-spacing:-0.045em;line-height:1.1}
+.card .mid{font-size:44px;font-weight:600;letter-spacing:-0.03em;color:#a1a1a6}
+.card.light .mid{color:#6e6e73}
+.card .grad{color:#ff9f45}
+.card .row{display:flex;gap:90px;margin-top:10px}
+.card .row div{display:flex;flex-direction:column;gap:6px}
+.card .row b{font-size:88px;font-weight:700;letter-spacing:-0.04em}
+.card .row span{font-size:24px;color:#a1a1a6}
+.card .sm{font-size:24px;color:#86868b;letter-spacing:.01em}
+.card > *{transform:translateY(20px);transition:transform 1.2s cubic-bezier(.2,.7,.2,1)}
+.card.on > *{transform:none}
+.tier{display:flex;flex-direction:column;gap:16px;width:900px;margin-top:20px}
+.tier .r{display:grid;grid-template-columns:90px 1fr 120px;align-items:center;gap:20px;font-size:28px;font-weight:600}
+.tier .bar{height:26px;border-radius:13px;background:#e8e8ed;position:relative;overflow:hidden}
+.tier .bar i{position:absolute;left:0;top:0;bottom:0;border-radius:13px;width:0;transition:width 1.6s cubic-bezier(.2,.7,.2,1)}
+.tier .avg{position:absolute;top:-8px;bottom:-8px;width:3px;background:#1d1d1f;left:52%}
+</style></head><body><div id="stage">
+<div class="copy" id="copy"></div>
+<div id="win"><iframe id="fr" src="dash.html"></iframe><div id="hl"><span></span></div></div>
+<div class="card" id="card"></div>
+</div>
+<script>
+const $=s=>document.querySelector(s);
+const S=0.95;
+function copy(eb,h,b,w){const c=$('#copy');c.classList.remove('on');setTimeout(()=>{c.innerHTML=`<div class="eyebrow">${eb}</div><div class="head">${h}</div><div class="body">${b}</div>`+(w?`<div class="why">${w}</div>`:'');requestAnimationFrame(()=>requestAnimationFrame(()=>c.classList.add('on')));},350);}
+function hideCopy(){$('#copy').classList.remove('on');}
+function win(on){$('#win').classList.toggle('on',on);}
+function card(html,light){const c=$('#card');c.classList.remove('on');setTimeout(()=>{c.className='card'+(light?' light':'');c.innerHTML=html;requestAnimationFrame(()=>requestAnimationFrame(()=>c.classList.add('on')));},html?500:0);if(!html)setTimeout(()=>{c.innerHTML=''},1000);}
+function cardOff(){$('#card').classList.remove('on');}
+function hl(r,label){const h=$('#hl');if(!r){h.classList.remove('on');return;}h.style.left=(r.x*S-10)+'px';h.style.top=(r.y*S-10)+'px';h.style.width=(r.w*S+20)+'px';h.style.height=(r.h*S+20)+'px';h.querySelector('span').textContent=label||'';h.querySelector('span').style.display=label?'block':'none';h.classList.add('on');}
+function bars(){document.querySelectorAll('.tier .bar i').forEach(i=>i.style.width=i.dataset.w);}
+</script></body></html>

@@ -1,6 +1,7 @@
 # 데모영상용 배경음악: 저작권 문제가 없도록 코드로 직접 합성한 오리지널 곡 (90 BPM, 잔잔한 앰비언트 팝)
 import numpy as np, wave
-SR = 44100; BPM = 92; beat = 60 / BPM; DUR = 82.0
+import sys
+SR = 44100; BPM = 92; beat = 60 / BPM; DUR = float(sys.argv[1]) if len(sys.argv) > 1 else 82.0
 N = int(SR * DUR); rng = np.random.default_rng(7)
 t_all = np.arange(N) / SR
 def midi(n): return 440 * 2 ** ((n - 69) / 12)
