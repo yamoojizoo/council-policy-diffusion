@@ -126,6 +126,7 @@ def _score(y, p):
                 precision_at_top10pct=float(np.asarray(y)[top].mean()), pos_rate=float(np.mean(y)), n=int(len(y)))
 
 
+LAST_MODEL = None   # (학습된 모델, 특징 목록). 결과물 model/ 폴더 저장용
 LAST_TRAIN = None   # 이론 가설 검증(hypotheses.py)에서 같은 학습 표본을 다시 쓰기 위해 보관
 
 
@@ -145,7 +146,7 @@ def build_train(mentions, docs, issues=None, horizon=180, step=60, warmup=180, e
 
 
 def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warmup=180, ext=None):
-    global LAST_TRAIN
+    global LAST_TRAIN, LAST_MODEL
     feats = FEATS + (list(EXT_COLS) if ext else [])
     train, cutoffs, assemblies, is_ord = build_train(mentions, docs, issues, horizon, step, warmup, ext)
     LAST_TRAIN = train
@@ -177,6 +178,7 @@ def backtest_and_predict(mentions, docs, issues=None, horizon=180, step=60, warm
                 metrics["ordinance_issues"] = {k: round(float(np.mean([f[k] for f in of])), 4)
                                                for k in ("roc_auc", "avg_precision", "precision_at_top10pct", "pos_rate")}
         model = _new_model().fit(train[feats], train.y)
+        LAST_MODEL = (model, feats)
         weights = {{**FEAT_KO, **EXT_COLS}[f]: round(float(c), 3) for f, c in zip(feats, model[-1].coef_[0])}
         metrics["mode"] = "logistic_regression"
         metrics["n_train"] = int(len(train))
@@ -220,3 +222,23 @@ def _reasons(r, contrib, feats=FEATS, k=3):
         if txt not in out:
             out.append(txt)
     return out
+
+
+def save_model(model, feats, out_dir, metrics=None):
+    """학습된 확산 예측 모델을 저장한다.
+    - forecast_model.joblib: scikit-learn 파이프라인(표준화 + 로지스틱 회귀) 그대로. joblib.load로 불러 predict_proba에 쓴다
+    - forecast_model.json: 특징 목록·표준화 평균/표준편차·계수·절편(라이브러리 없이도 점수를 다시 계산할 수 있게)"""
+    import json
+    import os
+
+    import joblib
+    os.makedirs(out_dir, exist_ok=True)
+    joblib.dump(dict(model=model, features=list(feats)), os.path.join(out_dir, "forecast_model.joblib"))
+    sc, lr = model[0], model[-1]
+    spec = dict(type="StandardScaler + LogisticRegression(class_weight='balanced')",
+                score="p = 1 / (1 + exp(-(intercept + sum(coef_j * (x_j - mean_j) / scale_j))))",
+                features=[dict(name=f, label=FEAT_KO.get(f, f), mean=float(m), scale=float(v), coef=float(c))
+                          for f, m, v, c in zip(feats, sc.mean_, sc.scale_, lr.coef_[0])],
+                intercept=float(lr.intercept_[0]), metrics={k: v for k, v in (metrics or {}).items() if k != "folds"})
+    with open(os.path.join(out_dir, "forecast_model.json"), "w", encoding="utf-8") as f:
+        json.dump(spec, f, ensure_ascii=False, indent=1)

@@ -1,0 +1,4 @@
+# 노트북(notebooks/) 실행용
+matplotlib>=3.7
+jupyter
+ipykernel

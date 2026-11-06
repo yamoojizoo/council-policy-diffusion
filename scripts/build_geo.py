@@ -3,7 +3,7 @@
 원자료: 통계청(KOSTAT) 센서스용 행정구역경계 2013, southkorea/southkorea-maps 저장소의 단순화 GeoJSON
   https://github.com/southkorea/southkorea-maps (kostat/2013/json/skorea_provinces_geo_simple.json)
 시각화(지도 그리기) 용도로만 쓰며, 분석·예측에는 사용하지 않는다.
-사용: python tools/build_geo.py <geojson 경로>
+사용: python scripts/build_geo.py <geojson 경로>
 """
 import json
 import math

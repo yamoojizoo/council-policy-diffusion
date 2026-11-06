@@ -146,6 +146,9 @@ def main():
     preds, metrics, weights = backtest_and_predict(mentions, docs, issues, horizon=a.horizon_days, ext=ext)
     log("확산 예측 완료: " + str({k: v for k, v in metrics.items() if k != "folds"}))
     pd.to_pickle((preds, metrics, weights), f"{work}/forecast.pkl")
+    from src import predict as PRM
+    if PRM.LAST_MODEL is not None:
+        PRM.save_model(*PRM.LAST_MODEL, os.path.join(a.out_dir, "model"), metrics)
     if len(preds):
         preds.drop(columns=[c for c in preds.columns if c.startswith("_")]).to_csv(
             f"{a.out_dir}/forecast_all.csv", index=False, encoding="utf-8-sig")
